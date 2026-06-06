@@ -37,11 +37,19 @@ It creates:
 
 ## How To Apply
 
-Recommended with Supabase CLI:
+Recommended with project scripts:
+
+```bash
+npm run db:push
+```
+
+Use this whenever a migration file changes and you want to apply the latest schema to the linked Supabase project.
+
+First-time setup with Supabase CLI:
 
 ```bash
 supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
+npm run db:push
 ```
 
 Alternative:
@@ -80,6 +88,28 @@ https://your-app-domain.com/auth/confirm?next=%2Fdashboard&token_hash={{ .TokenH
 Until the template is updated, Supabase's default confirmation URL may still
 redirect back to `/auth/confirm` with a `code`; the route supports that fallback,
 but the first browser hop will still be the Supabase verification endpoint.
+
+## Vendor Invite Emails
+
+When an admin adds a vendor, the backend uses Supabase Admin Auth to send a
+secure invite/password setup email. Add this server-only env var before testing
+vendor invites:
+
+```txt
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+Do not expose this key with a `NEXT_PUBLIC_` prefix.
+
+## Useful Commands
+
+```bash
+npm run db:migrations  # Show local/remote migration status
+npm run db:push        # Apply local migrations to Supabase
+npm run db:pull        # Pull remote schema into local migrations
+npm run db:diff        # Generate a diff from local database changes
+npm run db:reset       # Reset local Supabase database
+```
 
 ## Next Backend Step
 

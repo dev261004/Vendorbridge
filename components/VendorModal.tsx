@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -13,15 +13,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { formatName, formatEmail, formatPhone } from '@/lib/formUtils'
+import { formatEmail, formatName, formatPhone } from '@/lib/formUtils'
 import { VendorFormValues, VendorStatus } from '@/lib/vendors'
 
 const vendorSchema = z.object({
-  name: z.string().min(2, 'Vendor name must be at least 2 characters'),
+  name: z
+    .string()
+    .min(2, 'Vendor name must be at least 2 characters')
+    .regex(/^[a-zA-Z0-9\s.&()-]+$/, 'Unsupported characters in vendor name'),
   category: z
     .string()
     .min(2, 'Category is required')
-    .regex(/^[a-zA-Z\s]+$/, 'Special characters and numbers not allowed'),
+    .regex(/^[a-zA-Z\s/&-]+$/, 'Special characters and numbers not allowed'),
   gst_number: z.string(),
   contact_person: z
     .string()
@@ -31,16 +34,10 @@ const vendorSchema = z.object({
     .string()
     .min(1, 'Email is required for vendor invite')
     .email('Invalid email'),
-  phone: z.string().min(5, 'Contact number is required'),
-    .trim()
-    .toLowerCase()
-    .refine((value) => !value || z.string().email().safeParse(value).success, {
-      message: 'Invalid email',
-    }),
   phone: z
     .string()
-    .min(10, 'Contact number must be 10 digits')
-    .regex(/^\d{10}$/, 'Only numbers allowed'),
+    .min(10, 'Contact number must be at least 10 digits')
+    .regex(/^[0-9+\-\s()]+$/, 'Only phone number characters allowed'),
   address: z.string().min(5, 'Address is required'),
   city: z
     .string()
@@ -100,7 +97,6 @@ export default function VendorModal({
     reset,
     handleSubmit,
     formState: { errors },
-    control,
   } = useForm<VendorFormValues>({
     resolver: zodResolver(vendorSchema),
     defaultValues,
@@ -159,25 +155,25 @@ export default function VendorModal({
 
       const payload: VendorFormValues = {
         name: formatName(data.name),
-        category: data.category,
-        gst_number: data.gst_number,
-        contact_person: data.contact_person,
+        category: formatName(data.category),
+        gst_number: data.gst_number.trim().toUpperCase(),
+        contact_person: formatName(data.contact_person),
         email: formatEmail(data.email),
         phone: formatPhone(data.phone),
-        address: data.address,
-        city: data.city,
-        state: data.state,
-        country: data.country,
+        address: data.address.trim(),
+        city: formatName(data.city),
+        state: formatName(data.state),
+        country: formatName(data.country),
         rating: Number(data.rating || 0),
         status: data.status,
       }
 
       if (vendorId) {
-        await updateVendorAction(vendorId, data)
+        await updateVendorAction(vendorId, payload)
         reset(defaultValues)
         onClose('Vendor details updated.')
       } else {
-        const result = await createVendor(data)
+        const result = await createVendor(payload)
         reset(defaultValues)
         onClose(result.invite.message)
       }
@@ -315,115 +311,7 @@ export default function VendorModal({
                   rows={3}
                 />
               </Field>
-
-              <Field label="Category" error={errors.category?.message}>
-                <Input
-                  {...register('category')}
-                  placeholder="Furniture, IT, Logistics"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="GST Number" error={errors.gst_number?.message}>
-                <Input
-                  {...register('gst_number')}
-                  placeholder="27AABCS1429B2Z0"
-                  className="border-slate-600 bg-slate-700 text-white uppercase"
-                />
-              </Field>
-
-              <Field label="Contact Person" error={errors.contact_person?.message}>
-                <Input
-                  {...register('contact_person')}
-                  placeholder="Rahul Mehta"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Email" error={errors.email?.message}>
-                <Input
-                  {...register('email')}
-                  type="email"
-                  placeholder="vendor@example.com"
-                  className="border-slate-600 bg-slate-700 text-white"
-                  onChange={(event) => {
-                    event.target.value = event.target.value.trim().toLowerCase()
-                    register('email').onChange(event)
-                  }}
-                />
-              </Field>
-
-              <Field label="Contact Number" error={errors.phone?.message}>
-                <Input
-                  {...register('phone')}
-                  placeholder="+91 98765 43210"
-                  className="border-slate-600 bg-slate-700 text-white"
-                  onChange={(event) => {
-                    event.target.value = event.target.value.replace(/[^0-9]/g, '')
-                    register('phone').onChange(event)
-                  }}
-                />
-              </Field>
-
-              <Field label="City" error={errors.city?.message}>
-                <Input
-                  {...register('city')}
-                  placeholder="Ahmedabad"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="State" error={errors.state?.message}>
-                <Input
-                  {...register('state')}
-                  placeholder="Gujarat"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Country" error={errors.country?.message}>
-                <Input
-                  {...register('country')}
-                  placeholder="India"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Rating" error={errors.rating?.message}>
-                <Input
-                  {...register('rating', { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Status" error={errors.status?.message}>
-                <select
-                  {...register('status')}
-                  className={selectClassName}
-                >
-                  {(['pending', 'active', 'blocked', 'inactive'] as VendorStatus[]).map(
-                    (status) => (
-                      <option key={status} value={status} style={nativeOptionStyle}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    )
-                  )}
-                </select>
-              </Field>
-            </div>
-
-            <Field label="Address" error={errors.address?.message}>
-              <Textarea
-                {...register('address')}
-                placeholder="Full registered address"
-                className="border-slate-600 bg-slate-700 text-white"
-                rows={3}
-              />
-            </Field>
+            </fieldset>
 
             {formError && (
               <div className="rounded-lg border border-red-700 bg-red-900/30 px-3 py-2 text-sm text-red-300">
