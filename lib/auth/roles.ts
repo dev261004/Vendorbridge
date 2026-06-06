@@ -53,31 +53,31 @@ export const dashboardRouteRoles: Array<{
   },
   {
     href: '/dashboard/vendors',
-    roles: ['admin', 'procurement_officer'],
+    roles: ['admin'],
   },
   {
     href: '/dashboard/rfqs',
-    roles: ['admin', 'procurement_officer', 'vendor'],
+    roles: ['procurement_officer', 'vendor'],
   },
   {
     href: '/dashboard/quotations',
-    roles: ['admin', 'procurement_officer', 'manager', 'vendor'],
+    roles: ['procurement_officer', 'vendor'],
   },
   {
     href: '/dashboard/approvals',
-    roles: ['admin', 'manager'],
+    roles: ['manager'],
   },
   {
     href: '/dashboard/purchase-orders',
-    roles: ['admin', 'procurement_officer', 'vendor'],
+    roles: ['procurement_officer', 'vendor'],
   },
   {
     href: '/dashboard/invoices',
-    roles: ['admin', 'procurement_officer', 'vendor'],
+    roles: ['procurement_officer', 'vendor'],
   },
   {
     href: '/dashboard/reports',
-    roles: ['admin', 'procurement_officer', 'manager'],
+    roles: ['admin'],
   },
   {
     href: '/dashboard/settings',

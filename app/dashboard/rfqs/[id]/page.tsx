@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, ChevronLeft, FileText, Paperclip, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getRFQById, updateRFQStatus } from '@/app/actions/rfqs'
+import { getRFQAccess, getRFQById, updateRFQStatus } from '@/app/actions/rfqs'
 import { RFQStatus, RFQWithDetails, rfqStatusLabels } from '@/lib/rfqs'
 
 export default function RFQDetailPage() {
@@ -14,6 +14,7 @@ export default function RFQDetailPage() {
   const [rfq, setRFQ] = useState<RFQWithDetails | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [canManageRFQs, setCanManageRFQs] = useState(false)
 
   useEffect(() => {
     loadRFQ()
@@ -23,8 +24,12 @@ export default function RFQDetailPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getRFQById(rfqId)
+      const [data, access] = await Promise.all([
+        getRFQById(rfqId),
+        getRFQAccess(),
+      ])
       setRFQ(data)
+      setCanManageRFQs(access.canManage)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load RFQ.')
     } finally {
@@ -34,6 +39,11 @@ export default function RFQDetailPage() {
 
   const handleStatusChange = async (status: RFQStatus) => {
     if (!rfq) return
+
+    if (!canManageRFQs) {
+      setError('Only procurement officers can update RFQ status.')
+      return
+    }
 
     if (!window.confirm(`Change RFQ status to ${rfqStatusLabels[status]}?`)) {
       return
@@ -117,24 +127,26 @@ export default function RFQDetailPage() {
           <p className="text-slate-400">{rfq.description}</p>
         </div>
 
-        <div className="flex gap-2">
-          {rfq.status === 'draft' && (
-            <Button
-              onClick={() => handleStatusChange('published')}
-              className="bg-green-600 text-white hover:bg-green-700"
-            >
-              Publish
-            </Button>
-          )}
-          {rfq.status !== 'closed' && (
-            <Button
-              onClick={() => handleStatusChange('closed')}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              Close RFQ
-            </Button>
-          )}
-        </div>
+        {canManageRFQs && (
+          <div className="flex gap-2">
+            {rfq.status === 'draft' && (
+              <Button
+                onClick={() => handleStatusChange('published')}
+                className="bg-green-600 text-white hover:bg-green-700"
+              >
+                Publish
+              </Button>
+            )}
+            {rfq.status !== 'closed' && (
+              <Button
+                onClick={() => handleStatusChange('closed')}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                Close RFQ
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">

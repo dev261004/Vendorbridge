@@ -22,9 +22,8 @@ const vendorSchema = z.object({
   contact_person: z.string().min(2, 'Contact person is required'),
   email: z
     .string()
-    .refine((value) => !value || z.string().email().safeParse(value).success, {
-      message: 'Invalid email',
-    }),
+    .min(1, 'Email is required for vendor invite')
+    .email('Invalid email'),
   phone: z.string().min(5, 'Contact number is required'),
   address: z.string().min(5, 'Address is required'),
   city: z.string().min(2, 'City is required'),
@@ -59,11 +58,17 @@ const nativeOptionStyle = {
 
 interface VendorModalProps {
   isOpen: boolean
-  onClose: () => void
+  onClose: (message?: string) => void
   vendorId: string | null
+  readOnly?: boolean
 }
 
-export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalProps) {
+export default function VendorModal({
+  isOpen,
+  onClose,
+  vendorId,
+  readOnly = false,
+}: VendorModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -121,18 +126,23 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
   }, [isOpen, reset, vendorId])
 
   const onSubmit = async (data: VendorFormValues) => {
+    if (readOnly) {
+      return
+    }
+
     try {
       setIsLoading(true)
       setFormError(null)
 
       if (vendorId) {
         await updateVendorAction(vendorId, data)
+        reset(defaultValues)
+        onClose('Vendor details updated.')
       } else {
-        await createVendor(data)
+        const result = await createVendor(data)
+        reset(defaultValues)
+        onClose(result.invite.message)
       }
-
-      reset(defaultValues)
-      onClose()
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Failed to save vendor.')
     } finally {
@@ -141,125 +151,133 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto border-slate-700 bg-slate-800 text-white">
         <DialogHeader>
-          <DialogTitle>{vendorId ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
+          <DialogTitle>
+            {readOnly ? 'Vendor Details' : vendorId ? 'Edit Vendor' : 'Add New Vendor'}
+          </DialogTitle>
         </DialogHeader>
 
         {isFetching ? (
           <div className="py-10 text-center text-slate-400">Loading vendor details...</div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Vendor Name" error={errors.name?.message}>
-                <Input
-                  {...register('name')}
-                  placeholder="Infra Supplies Pvt Ltd"
+            <fieldset disabled={readOnly || isLoading} className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Vendor Name" error={errors.name?.message}>
+                  <Input
+                    {...register('name')}
+                    placeholder="Infra Supplies Pvt Ltd"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Category" error={errors.category?.message}>
+                  <Input
+                    {...register('category')}
+                    placeholder="Furniture, IT, Logistics"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="GST Number" error={errors.gst_number?.message}>
+                  <Input
+                    {...register('gst_number')}
+                    placeholder="27AABCS1429B2Z0"
+                    className="border-slate-600 bg-slate-700 text-white uppercase"
+                  />
+                </Field>
+
+                <Field label="Contact Person" error={errors.contact_person?.message}>
+                  <Input
+                    {...register('contact_person')}
+                    placeholder="Rahul Mehta"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Email" error={errors.email?.message}>
+                  <Input
+                    {...register('email')}
+                    type="email"
+                    placeholder="vendor@example.com"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Contact Number" error={errors.phone?.message}>
+                  <Input
+                    {...register('phone')}
+                    placeholder="+91 98765 43210"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="City" error={errors.city?.message}>
+                  <Input
+                    {...register('city')}
+                    placeholder="Ahmedabad"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="State" error={errors.state?.message}>
+                  <Input
+                    {...register('state')}
+                    placeholder="Gujarat"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Country" error={errors.country?.message}>
+                  <Input
+                    {...register('country')}
+                    placeholder="India"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Rating" error={errors.rating?.message}>
+                  <Input
+                    {...register('rating', { valueAsNumber: true })}
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    className="border-slate-600 bg-slate-700 text-white"
+                  />
+                </Field>
+
+                <Field label="Status" error={errors.status?.message}>
+                  <select {...register('status')} className={selectClassName}>
+                    {(['pending', 'active', 'blocked', 'inactive'] as VendorStatus[]).map(
+                      (status) => (
+                        <option key={status} value={status} style={nativeOptionStyle}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </Field>
+              </div>
+
+              <Field label="Address" error={errors.address?.message}>
+                <Textarea
+                  {...register('address')}
+                  placeholder="Full registered address"
                   className="border-slate-600 bg-slate-700 text-white"
+                  rows={3}
                 />
               </Field>
-
-              <Field label="Category" error={errors.category?.message}>
-                <Input
-                  {...register('category')}
-                  placeholder="Furniture, IT, Logistics"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="GST Number" error={errors.gst_number?.message}>
-                <Input
-                  {...register('gst_number')}
-                  placeholder="27AABCS1429B2Z0"
-                  className="border-slate-600 bg-slate-700 text-white uppercase"
-                />
-              </Field>
-
-              <Field label="Contact Person" error={errors.contact_person?.message}>
-                <Input
-                  {...register('contact_person')}
-                  placeholder="Rahul Mehta"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Email" error={errors.email?.message}>
-                <Input
-                  {...register('email')}
-                  type="email"
-                  placeholder="vendor@example.com"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Contact Number" error={errors.phone?.message}>
-                <Input
-                  {...register('phone')}
-                  placeholder="+91 98765 43210"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="City" error={errors.city?.message}>
-                <Input
-                  {...register('city')}
-                  placeholder="Ahmedabad"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="State" error={errors.state?.message}>
-                <Input
-                  {...register('state')}
-                  placeholder="Gujarat"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Country" error={errors.country?.message}>
-                <Input
-                  {...register('country')}
-                  placeholder="India"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Rating" error={errors.rating?.message}>
-                <Input
-                  {...register('rating', { valueAsNumber: true })}
-                  type="number"
-                  min="0"
-                  max="5"
-                  step="0.1"
-                  className="border-slate-600 bg-slate-700 text-white"
-                />
-              </Field>
-
-              <Field label="Status" error={errors.status?.message}>
-                <select
-                  {...register('status')}
-                  className={selectClassName}
-                >
-                  {(['pending', 'active', 'blocked', 'inactive'] as VendorStatus[]).map(
-                    (status) => (
-                      <option key={status} value={status} style={nativeOptionStyle}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    )
-                  )}
-                </select>
-              </Field>
-            </div>
-
-            <Field label="Address" error={errors.address?.message}>
-              <Textarea
-                {...register('address')}
-                placeholder="Full registered address"
-                className="border-slate-600 bg-slate-700 text-white"
-                rows={3}
-              />
-            </Field>
+            </fieldset>
 
             {formError && (
               <div className="rounded-lg border border-red-700 bg-red-900/30 px-3 py-2 text-sm text-red-300">
@@ -268,19 +286,21 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
             )}
 
             <div className="flex gap-3 pt-2">
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-              >
-                {isLoading ? 'Saving...' : vendorId ? 'Update Vendor' : 'Add Vendor'}
-              </Button>
+              {!readOnly && (
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {isLoading ? 'Saving...' : vendorId ? 'Update Vendor' : 'Add Vendor'}
+                </Button>
+              )}
               <Button
                 type="button"
-                onClick={onClose}
+                onClick={() => onClose()}
                 className="flex-1 bg-slate-700 text-white hover:bg-slate-600"
               >
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </Button>
             </div>
           </form>

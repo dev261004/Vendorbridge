@@ -19,6 +19,8 @@ import {
 interface VendorTableProps {
   vendors: VendorRecord[]
   isLoading?: boolean
+  canManage?: boolean
+  onView: (vendorId: string) => void
   onEdit: (vendorId: string) => void
   onStatusChange: (vendorId: string, status: VendorStatus) => void
 }
@@ -26,6 +28,8 @@ interface VendorTableProps {
 export default function VendorTable({
   vendors,
   isLoading = false,
+  canManage = false,
+  onView,
   onEdit,
   onStatusChange,
 }: VendorTableProps) {
@@ -121,21 +125,23 @@ export default function VendorTable({
                     size="sm"
                     variant="ghost"
                     className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
-                    onClick={() => onEdit(vendor.id)}
+                    onClick={() => onView(vendor.id)}
                     title="View vendor"
                   >
                     <Eye className="size-4" />
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
-                    onClick={() => onEdit(vendor.id)}
-                    title="Edit vendor"
-                  >
-                    <Edit className="size-4" />
-                  </Button>
-                  {vendor.status !== 'active' && (
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
+                      onClick={() => onEdit(vendor.id)}
+                      title="Edit vendor"
+                    >
+                      <Edit className="size-4" />
+                    </Button>
+                  )}
+                  {canManage && vendor.status !== 'active' && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -146,7 +152,7 @@ export default function VendorTable({
                       <UserCheck className="size-4" />
                     </Button>
                   )}
-                  {vendor.status !== 'blocked' && (
+                  {canManage && vendor.status !== 'blocked' && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -157,7 +163,7 @@ export default function VendorTable({
                       <ShieldBan className="size-4" />
                     </Button>
                   )}
-                  {vendor.status !== 'inactive' && (
+                  {canManage && vendor.status !== 'inactive' && (
                     <Button
                       size="sm"
                       variant="ghost"

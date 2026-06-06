@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import VendorModal from '@/components/VendorModal'
 import VendorTable from '@/components/VendorTable'
-import { getVendors, updateVendorStatus } from '@/app/actions/vendors'
+import {
+  getVendorAccess,
+  getVendors,
+  updateVendorStatus,
+} from '@/app/actions/vendors'
 import {
   VendorRecord,
   VendorStatus,
@@ -19,9 +23,12 @@ export default function VendorsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create')
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<VendorStatusFilter>('all')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [canManageVendors, setCanManageVendors] = useState(false)
 
   useEffect(() => {
     loadVendors()
@@ -31,8 +38,12 @@ export default function VendorsPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const data = await getVendors()
+      const [data, access] = await Promise.all([
+        getVendors(),
+        getVendorAccess(),
+      ])
       setVendors(data)
+      setCanManageVendors(access.canManage)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load vendors.')
     } finally {
@@ -95,18 +106,43 @@ export default function VendorsPage() {
   }
 
   const handleAddVendor = () => {
+    if (!canManageVendors) {
+      setError('Only admins can add vendors.')
+      return
+    }
+
+    setSuccess(null)
     setSelectedVendor(null)
+    setModalMode('create')
+    setIsModalOpen(true)
+  }
+
+  const handleViewVendor = (vendorId: string) => {
+    setSuccess(null)
+    setSelectedVendor(vendorId)
+    setModalMode('view')
     setIsModalOpen(true)
   }
 
   const handleEditVendor = (vendorId: string) => {
+    if (!canManageVendors) {
+      handleViewVendor(vendorId)
+      return
+    }
+
+    setSuccess(null)
     setSelectedVendor(vendorId)
+    setModalMode('edit')
     setIsModalOpen(true)
   }
 
-  const handleCloseModal = () => {
+  const handleCloseModal = (message?: string) => {
     setIsModalOpen(false)
     setSelectedVendor(null)
+    setModalMode('create')
+    if (typeof message === 'string' && message.length > 0) {
+      setSuccess(message)
+    }
     loadVendors()
   }
 
@@ -126,6 +162,7 @@ export default function VendorsPage() {
 
     try {
       setError(null)
+      setSuccess(null)
       const updatedVendor = await updateVendorStatus(vendorId, status)
       setVendors((currentVendors) =>
         currentVendors.map((item) =>
@@ -149,16 +186,20 @@ export default function VendorsPage() {
             Vendor Management
           </h1>
           <p className="text-slate-400">
-            Manage supplier profiles, GST details, categories, and status.
+            {canManageVendors
+              ? 'Manage supplier profiles, GST details, categories, and status.'
+              : 'View supplier profiles for RFQ assignment and procurement workflows.'}
           </p>
         </div>
-        <Button
-          onClick={handleAddVendor}
-          className="w-fit bg-blue-600 text-white hover:bg-blue-700"
-        >
-          <Plus className="mr-2 size-4" />
-          Add Vendor
-        </Button>
+        {canManageVendors && (
+          <Button
+            onClick={handleAddVendor}
+            className="w-fit bg-blue-600 text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 size-4" />
+            Add Vendor
+          </Button>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
@@ -227,10 +268,18 @@ export default function VendorsPage() {
         </div>
       )}
 
+      {success && (
+        <div className="mb-4 rounded-lg border border-green-700 bg-green-900/30 px-4 py-3 text-sm text-green-300">
+          {success}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
         <VendorTable
           vendors={filteredVendors}
           isLoading={isLoading}
+          canManage={canManageVendors}
+          onView={handleViewVendor}
           onEdit={handleEditVendor}
           onStatusChange={handleStatusChange}
         />
@@ -240,6 +289,7 @@ export default function VendorsPage() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         vendorId={selectedVendor}
+        readOnly={modalMode === 'view'}
       />
     </div>
   )

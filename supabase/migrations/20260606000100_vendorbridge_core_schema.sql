@@ -660,16 +660,17 @@ create policy "Members can view organization vendors"
   );
 
 drop policy if exists "Procurement users can manage vendors" on public.vendors;
-create policy "Procurement users can manage vendors"
+drop policy if exists "Admins can manage vendors" on public.vendors;
+create policy "Admins can manage vendors"
   on public.vendors for all
   to authenticated
   using (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'admin'
   )
   with check (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'admin'
   );
 
 drop policy if exists "Internal users and invited vendors can view rfqs" on public.rfqs;
@@ -692,11 +693,11 @@ create policy "Procurement users can manage rfqs"
   to authenticated
   using (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   )
   with check (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   );
 
 drop policy if exists "Visible rfq items can be selected" on public.rfq_items;
@@ -714,7 +715,7 @@ create policy "Procurement users can manage rfq items"
       select 1 from public.rfqs r
       where r.id = rfq_items.rfq_id
         and r.organization_id = public.current_user_organization_id()
-        and public.current_user_role() in ('admin', 'procurement_officer')
+        and public.current_user_role() = 'procurement_officer'
     )
   )
   with check (
@@ -722,7 +723,7 @@ create policy "Procurement users can manage rfq items"
       select 1 from public.rfqs r
       where r.id = rfq_items.rfq_id
         and r.organization_id = public.current_user_organization_id()
-        and public.current_user_role() in ('admin', 'procurement_officer')
+        and public.current_user_role() = 'procurement_officer'
     )
   );
 
@@ -741,11 +742,11 @@ create policy "Procurement users can manage invitations"
   to authenticated
   using (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   )
   with check (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   );
 
 drop policy if exists "Vendors can update own invitation response" on public.rfq_vendor_invitations;
@@ -767,11 +768,11 @@ create policy "Procurement users can manage rfq attachments"
   to authenticated
   using (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   )
   with check (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer')
+    and public.current_user_role() = 'procurement_officer'
   );
 
 drop policy if exists "Internal users and own vendors can view quotations" on public.quotations;
@@ -779,51 +780,101 @@ create policy "Internal users and own vendors can view quotations"
   on public.quotations for select
   to authenticated
   using (
-    (organization_id = public.current_user_organization_id() and public.current_user_is_internal())
+    (
+      organization_id = public.current_user_organization_id()
+      and public.current_user_role() = 'procurement_officer'
+      and status <> 'draft'
+    )
+    or (
+      organization_id = public.current_user_organization_id()
+      and public.current_user_role() = 'manager'
+      and exists (
+        select 1 from public.approval_requests ar
+        where ar.quotation_id = quotations.id
+      )
+    )
     or vendor_id = public.current_user_vendor_id()
   );
 
 drop policy if exists "Vendors and internal users can manage quotations" on public.quotations;
-create policy "Vendors and internal users can manage quotations"
-  on public.quotations for all
+drop policy if exists "Vendors can create own quotations" on public.quotations;
+create policy "Vendors can create own quotations"
+  on public.quotations for insert
+  to authenticated
+  with check (
+    organization_id = public.current_user_organization_id()
+    and vendor_id = public.current_user_vendor_id()
+    and public.current_user_role() = 'vendor'
+    and status in ('draft', 'submitted')
+  );
+
+drop policy if exists "Vendors can update own editable quotations" on public.quotations;
+create policy "Vendors can update own editable quotations"
+  on public.quotations for update
   to authenticated
   using (
-    (organization_id = public.current_user_organization_id() and public.current_user_is_internal())
-    or vendor_id = public.current_user_vendor_id()
+    organization_id = public.current_user_organization_id()
+    and vendor_id = public.current_user_vendor_id()
+    and public.current_user_role() = 'vendor'
+    and status in ('draft', 'submitted')
   )
   with check (
-    (organization_id = public.current_user_organization_id() and public.current_user_is_internal())
-    or vendor_id = public.current_user_vendor_id()
+    organization_id = public.current_user_organization_id()
+    and vendor_id = public.current_user_vendor_id()
+    and public.current_user_role() = 'vendor'
+    and status in ('draft', 'submitted')
   );
 
 drop policy if exists "Visible quotation items can be selected" on public.quotation_items;
 create policy "Visible quotation items can be selected"
   on public.quotation_items for select
   to authenticated
-  using (exists (select 1 from public.quotations q where q.id = quotation_items.quotation_id));
+  using (
+    exists (
+      select 1 from public.quotations q
+      where q.id = quotation_items.quotation_id
+        and (
+          (
+            q.organization_id = public.current_user_organization_id()
+            and public.current_user_role() = 'procurement_officer'
+            and q.status <> 'draft'
+          )
+          or (
+            q.organization_id = public.current_user_organization_id()
+            and public.current_user_role() = 'manager'
+            and exists (
+              select 1 from public.approval_requests ar
+              where ar.quotation_id = q.id
+            )
+          )
+          or q.vendor_id = public.current_user_vendor_id()
+        )
+    )
+  );
 
 drop policy if exists "Quotation owners can manage quotation items" on public.quotation_items;
-create policy "Quotation owners can manage quotation items"
+drop policy if exists "Vendors can manage own editable quotation items" on public.quotation_items;
+create policy "Vendors can manage own editable quotation items"
   on public.quotation_items for all
   to authenticated
   using (
     exists (
       select 1 from public.quotations q
       where q.id = quotation_items.quotation_id
-        and (
-          (q.organization_id = public.current_user_organization_id() and public.current_user_is_internal())
-          or q.vendor_id = public.current_user_vendor_id()
-        )
+        and q.organization_id = public.current_user_organization_id()
+        and q.vendor_id = public.current_user_vendor_id()
+        and public.current_user_role() = 'vendor'
+        and q.status in ('draft', 'submitted')
     )
   )
   with check (
     exists (
       select 1 from public.quotations q
       where q.id = quotation_items.quotation_id
-        and (
-          (q.organization_id = public.current_user_organization_id() and public.current_user_is_internal())
-          or q.vendor_id = public.current_user_vendor_id()
-        )
+        and q.organization_id = public.current_user_organization_id()
+        and q.vendor_id = public.current_user_vendor_id()
+        and public.current_user_role() = 'vendor'
+        and q.status in ('draft', 'submitted')
     )
   );
 

@@ -1,220 +1,260 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
-import { useAppStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, CheckCircle, XCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { CalendarDays, ChevronLeft, FileText, Package, Truck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { getQuotationById } from '@/app/actions/quotations'
+import {
+  QuotationStatus,
+  QuotationWithDetails,
+  quotationStatusLabels,
+} from '@/lib/quotations'
 
 export default function QuotationDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const quotationId = params.id as string
-  const { getQuotation, getVendor, getRFQ, addPO, updateQuotation } = useAppStore()
+  const [quotation, setQuotation] = useState<QuotationWithDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const quotation = getQuotation(quotationId)
-  const vendor = quotation ? getVendor(quotation.vendorId) : null
-  const rfq = quotation ? getRFQ(quotation.rfqId) : null
+  useEffect(() => {
+    loadQuotation()
+  }, [quotationId])
 
-  if (!quotation) {
+  const loadQuotation = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await getQuotationById(quotationId)
+      setQuotation(data)
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : 'Failed to load quotation.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (isLoading) {
     return (
-      <div className="p-8 bg-slate-900 min-h-screen">
+      <div className="min-h-screen bg-slate-900 p-8 text-slate-400">
+        Loading quotation...
+      </div>
+    )
+  }
+
+  if (error || !quotation) {
+    return (
+      <div className="min-h-screen bg-slate-900 p-8">
         <div className="text-center">
-          <p className="text-slate-400 mb-4">Quotation not found</p>
+          <p className="mb-4 text-slate-400">
+            {error || 'Quotation not found'}
+          </p>
           <Link href="/dashboard/quotations">
-            <Button className="bg-blue-600 hover:bg-blue-700">Back to Quotations</Button>
+            <Button className="bg-blue-600 text-white hover:bg-blue-700">
+              Back to Quotations
+            </Button>
           </Link>
         </div>
       </div>
     )
   }
 
-  const handleAccept = () => {
-    updateQuotation(quotationId, { status: 'accepted' })
-    // Create PO from quotation
-    addPO({
-      id: String(Date.now()),
-      poNumber: `PO-${Date.now()}`,
-      vendorId: quotation.vendorId,
-      rfqId: quotation.rfqId,
-      quotationId: quotationId,
-      items: quotation.items.map((item) => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        unit: item.unit,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-      })),
-      totalAmount: quotation.totalAmount,
-      orderDate: new Date(),
-      deliveryDate: quotation.deliveryDate,
-      paymentTerms: quotation.paymentTerms,
-      status: 'sent',
-      createdBy: 'current-user',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    alert('Purchase Order created successfully!')
-    router.push('/dashboard/purchase-orders')
-  }
-
-  const handleReject = () => {
-    updateQuotation(quotationId, { status: 'rejected' })
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'accepted':
-        return 'text-green-400 bg-green-900/30'
-      case 'submitted':
-        return 'text-blue-400 bg-blue-900/30'
-      case 'rejected':
-        return 'text-red-400 bg-red-900/30'
-      case 'under_review':
-        return 'text-yellow-400 bg-yellow-900/30'
-      default:
-        return 'text-slate-400 bg-slate-700/30'
-    }
-  }
-
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+    <div className="min-h-screen bg-slate-900 p-8">
+      <div className="mb-8 flex items-center gap-4">
         <Link href="/dashboard/quotations">
-          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-2" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-slate-400 hover:text-white"
+          >
+            <ChevronLeft className="mr-2 size-4" />
             Back
           </Button>
         </Link>
       </div>
 
-      <div className="flex items-start justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Quotation from {vendor?.name}
-          </h1>
-          <p className="text-slate-400">{quotation.quotationNumber}</p>
-        </div>
-        <div className="flex gap-2">
-          {quotation.status === 'submitted' && (
-            <>
-              <Button
-                onClick={handleAccept}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Accept & Create PO
-              </Button>
-              <Button
-                onClick={handleReject}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                <XCircle className="w-4 h-4 mr-2" />
-                Reject
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Status Badge */}
-      <div className="mb-8">
-        <span
-          className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${getStatusColor(quotation.status)}`}
-        >
-          {quotation.status.replace('_', ' ').toUpperCase()}
-        </span>
-      </div>
-
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">Vendor</p>
-          <p className="text-xl font-bold text-white">{vendor?.name}</p>
-          <p className="text-sm text-slate-500 mt-2">{vendor?.email}</p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">Total Amount</p>
-          <p className="text-3xl font-bold text-white">
-            ${quotation.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-          </p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">Valid Until</p>
-          <p className="text-xl font-bold text-white">
-            {new Date(quotation.validUntil).toLocaleDateString()}
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold text-white">
+              {quotation.quotation_number}
+            </h1>
+            <StatusBadge status={quotation.status} />
+          </div>
+          <p className="text-slate-400">
+            {quotation.rfqs?.title || 'RFQ'} from{' '}
+            {quotation.vendors?.name || 'Vendor'}
           </p>
         </div>
       </div>
 
-      {/* Quotation Details */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">Delivery Date</p>
-          <p className="text-lg font-bold text-white">
-            {new Date(quotation.deliveryDate).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">Payment Terms</p>
-          <p className="text-lg font-bold text-white">{quotation.paymentTerms}</p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <p className="text-slate-400 text-sm mb-2">RFQ Reference</p>
-          <p className="text-lg font-bold text-white">{rfq?.number || 'N/A'}</p>
-        </div>
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+        <InfoCard
+          label="Total Amount"
+          value={`Rs. ${Number(quotation.total_amount || 0).toLocaleString('en-IN')}`}
+          icon={<Package />}
+        />
+        <InfoCard
+          label="Delivery Timeline"
+          value={`${quotation.delivery_days || '-'} days`}
+          icon={<Truck />}
+        />
+        <InfoCard
+          label="Valid Until"
+          value={
+            quotation.valid_until
+              ? new Date(quotation.valid_until).toLocaleDateString()
+              : '-'
+          }
+          icon={<CalendarDays />}
+        />
+        <InfoCard
+          label="RFQ Reference"
+          value={quotation.rfqs?.rfq_number || '-'}
+          icon={<FileText />}
+        />
       </div>
 
-      {/* Line Items */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 mb-8">
-        <h2 className="text-xl font-bold text-white mb-4">Line Items</h2>
+      <section className="mb-8 rounded-lg border border-slate-700 bg-slate-800 p-6">
+        <h2 className="mb-4 text-xl font-bold text-white">Quotation Items</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left p-3 text-slate-300 font-medium">Description</th>
-                <th className="text-right p-3 text-slate-300 font-medium">Quantity</th>
-                <th className="text-right p-3 text-slate-300 font-medium">Unit Price</th>
-                <th className="text-right p-3 text-slate-300 font-medium">Total</th>
+                <th className="p-3 text-left font-medium text-slate-300">Item</th>
+                <th className="p-3 text-right font-medium text-slate-300">
+                  Quantity
+                </th>
+                <th className="p-3 text-right font-medium text-slate-300">
+                  Unit Price
+                </th>
+                <th className="p-3 text-right font-medium text-slate-300">
+                  Delivery
+                </th>
+                <th className="p-3 text-right font-medium text-slate-300">
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
-              {quotation.items.map((item) => (
-                <tr key={item.id} className="border-b border-slate-700 hover:bg-slate-700/50">
-                  <td className="p-3 text-white">{item.description}</td>
-                  <td className="text-right p-3 text-slate-300">
+              {quotation.quotation_items.map((item) => (
+                <tr
+                  key={item.id}
+                  className="border-b border-slate-700 hover:bg-slate-700/50"
+                >
+                  <td className="p-3">
+                    <p className="font-medium text-white">{item.item_name}</p>
+                    {item.notes && (
+                      <p className="mt-1 text-xs text-slate-500">{item.notes}</p>
+                    )}
+                  </td>
+                  <td className="p-3 text-right text-slate-300">
                     {item.quantity} {item.unit}
                   </td>
-                  <td className="text-right p-3 text-slate-300">
-                    ${item.unitPrice.toFixed(2)}
+                  <td className="p-3 text-right text-slate-300">
+                    Rs. {Number(item.unit_price || 0).toLocaleString('en-IN')}
                   </td>
-                  <td className="text-right p-3 text-white font-medium">
-                    ${item.totalPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                  <td className="p-3 text-right text-slate-300">
+                    {item.delivery_days || '-'} days
+                  </td>
+                  <td className="p-3 text-right font-medium text-white">
+                    Rs. {Number(item.total_price || 0).toLocaleString('en-IN')}
                   </td>
                 </tr>
               ))}
-              <tr className="bg-slate-700/30 border-t-2 border-slate-600">
-                <td colSpan={3} className="p-3 text-right font-semibold text-white">
-                  Total:
+              <tr className="border-t-2 border-slate-600 bg-slate-700/30">
+                <td colSpan={4} className="p-3 text-right font-semibold text-white">
+                  Subtotal
                 </td>
-                <td className="text-right p-3 text-lg font-bold text-white">
-                  ${quotation.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                <td className="p-3 text-right font-bold text-white">
+                  Rs. {Number(quotation.subtotal || 0).toLocaleString('en-IN')}
+                </td>
+              </tr>
+              <tr className="bg-slate-700/30">
+                <td colSpan={4} className="p-3 text-right font-semibold text-white">
+                  GST ({Number(quotation.gst_percent || 0)}%)
+                </td>
+                <td className="p-3 text-right font-bold text-white">
+                  Rs. {Number(quotation.gst_amount || 0).toLocaleString('en-IN')}
+                </td>
+              </tr>
+              <tr className="bg-slate-700/50">
+                <td colSpan={4} className="p-3 text-right text-lg font-bold text-white">
+                  Total
+                </td>
+                <td className="p-3 text-right text-lg font-bold text-white">
+                  Rs. {Number(quotation.total_amount || 0).toLocaleString('en-IN')}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      {/* Notes */}
-      {quotation.notes && (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <h2 className="text-lg font-bold text-white mb-3">Notes</h2>
-          <p className="text-slate-300">{quotation.notes}</p>
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-6">
+          <h2 className="mb-3 text-lg font-bold text-white">Commercial Terms</h2>
+          <p className="text-sm text-slate-400">Payment Terms</p>
+          <p className="mb-4 text-white">{quotation.payment_terms || '-'}</p>
+          <p className="text-sm text-slate-400">Vendor</p>
+          <p className="text-white">{quotation.vendors?.name || '-'}</p>
+          {quotation.vendors?.email && (
+            <p className="text-sm text-slate-500">{quotation.vendors.email}</p>
+          )}
         </div>
-      )}
+
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-6">
+          <h2 className="mb-3 text-lg font-bold text-white">Notes / Comments</h2>
+          <p className="whitespace-pre-wrap text-slate-300">
+            {quotation.notes || 'No notes added.'}
+          </p>
+        </div>
+      </section>
     </div>
+  )
+}
+
+function InfoCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string
+  value: string | number
+  icon: React.ReactElement
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-slate-400">{label}</p>
+        <span className="text-blue-400 [&_svg]:size-5">{icon}</span>
+      </div>
+      <p className="text-xl font-bold text-white">{value}</p>
+    </div>
+  )
+}
+
+function StatusBadge({ status }: { status: QuotationStatus }) {
+  const colors: Record<QuotationStatus, string> = {
+    draft: 'border-yellow-700 bg-yellow-900/30 text-yellow-400',
+    submitted: 'border-blue-700 bg-blue-900/30 text-blue-400',
+    under_review: 'border-purple-700 bg-purple-900/30 text-purple-300',
+    selected: 'border-green-700 bg-green-900/30 text-green-400',
+    accepted: 'border-green-700 bg-green-900/30 text-green-400',
+    rejected: 'border-red-700 bg-red-900/30 text-red-400',
+    expired: 'border-slate-600 bg-slate-700/30 text-slate-400',
+  }
+
+  return (
+    <span
+      className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${colors[status]}`}
+    >
+      {quotationStatusLabels[status]}
+    </span>
   )
 }

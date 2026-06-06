@@ -2,14 +2,17 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
+  CreateVendorResult,
   VendorFormValues,
+  VendorInviteResult,
   VendorRecord,
   VendorStatus,
   VendorStatusFilter,
 } from '@/lib/vendors'
 
-type VendorManagerRole = 'admin' | 'procurement_officer'
+type VendorManagerRole = 'admin'
 
 interface VendorProfile {
   organization_id: string | null
@@ -27,12 +30,20 @@ interface GetVendorsOptions {
 }
 
 function canManageVendors(role: string | null): role is VendorManagerRole {
-  return role === 'admin' || role === 'procurement_officer'
+  return role === 'admin'
+}
+
+function canViewOrganizationVendors(role: string | null) {
+  return ['admin', 'procurement_officer', 'manager'].includes(role || '')
 }
 
 function normalizeText(value?: string | null) {
   const normalized = value?.trim()
   return normalized ? normalized : null
+}
+
+function normalizeEmail(value?: string | null) {
+  return normalizeText(value)?.toLowerCase() || null
 }
 
 function normalizeVendorPayload(values: VendorFormValues) {
@@ -41,7 +52,7 @@ function normalizeVendorPayload(values: VendorFormValues) {
     category: values.category.trim(),
     gst_number: normalizeText(values.gst_number)?.toUpperCase() || null,
     contact_person: normalizeText(values.contact_person),
-    email: normalizeText(values.email)?.toLowerCase() || null,
+    email: normalizeEmail(values.email),
     phone: normalizeText(values.phone),
     address: normalizeText(values.address),
     city: normalizeText(values.city),
@@ -49,6 +60,36 @@ function normalizeVendorPayload(values: VendorFormValues) {
     country: normalizeText(values.country) || 'India',
     rating: Number(values.rating || 0),
     status: values.status,
+  }
+}
+
+function getSiteUrl() {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.SITE_URL
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, '')
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/$/, '')}`
+  }
+
+  return 'http://localhost:3000'
+}
+
+function splitContactName(contactPerson: string | null) {
+  if (!contactPerson) {
+    return { firstName: null, lastName: null }
+  }
+
+  const [firstName, ...rest] = contactPerson.trim().split(/\s+/)
+
+  return {
+    firstName: firstName || null,
+    lastName: rest.join(' ') || null,
   }
 }
 
@@ -84,6 +125,15 @@ async function getAuthenticatedProfile() {
   }
 }
 
+export async function getVendorAccess() {
+  const { profile } = await getAuthenticatedProfile()
+
+  return {
+    role: profile.role,
+    canManage: canManageVendors(profile.role),
+  }
+}
+
 async function logVendorActivity(params: {
   organizationId: string
   actorId: string
@@ -104,6 +154,77 @@ async function logVendorActivity(params: {
   })
 }
 
+async function sendVendorInvite(params: {
+  vendor: VendorRecord
+  organizationId: string
+}): Promise<VendorInviteResult> {
+  const email = normalizeEmail(params.vendor.email)
+
+  if (!email) {
+    return {
+      sent: false,
+      email: '',
+      message: 'Vendor was saved, but no invite was sent because email is missing.',
+    }
+  }
+
+  try {
+    const admin = createAdminClient()
+    const { firstName, lastName } = splitContactName(params.vendor.contact_person)
+    const redirectTo = `${getSiteUrl()}/auth/callback?next=${encodeURIComponent(
+      '/auth/reset-password'
+    )}`
+
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: {
+        role: 'vendor',
+        vendor_id: params.vendor.id,
+        organization_id: params.organizationId,
+        first_name: firstName,
+        last_name: lastName,
+        phone: params.vendor.phone,
+        country: params.vendor.country,
+      },
+    })
+
+    if (error) {
+      throw error
+    }
+
+    if (data.user?.id) {
+      await admin.from('profiles').upsert(
+        {
+          id: data.user.id,
+          organization_id: params.organizationId,
+          role: 'vendor',
+          vendor_id: params.vendor.id,
+          first_name: firstName,
+          last_name: lastName,
+          phone: params.vendor.phone,
+          country: params.vendor.country,
+        },
+        { onConflict: 'id' }
+      )
+    }
+
+    return {
+      sent: true,
+      email,
+      message: `Vendor invite sent to ${email}.`,
+    }
+  } catch (error) {
+    return {
+      sent: false,
+      email,
+      message:
+        error instanceof Error
+          ? `Vendor was saved, but invite email was not sent: ${error.message}`
+          : 'Vendor was saved, but invite email was not sent.',
+    }
+  }
+}
+
 export async function getVendors(options: GetVendorsOptions = {}) {
   const { supabase, profile } = await getAuthenticatedProfile()
   const status = options.status || 'all'
@@ -115,7 +236,7 @@ export async function getVendors(options: GetVendorsOptions = {}) {
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
 
-  if (!canManageVendors(profile.role)) {
+  if (!canViewOrganizationVendors(profile.role)) {
     if (!profile.vendor_id) {
       return []
     }
@@ -151,7 +272,7 @@ export async function getVendorById(id: string) {
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
 
-  if (!canManageVendors(profile.role)) {
+  if (!canViewOrganizationVendors(profile.role)) {
     request = request.eq('id', profile.vendor_id)
   }
 
@@ -168,7 +289,9 @@ export async function getVendorById(id: string) {
   return data
 }
 
-export async function createVendor(values: VendorFormValues) {
+export async function createVendor(
+  values: VendorFormValues
+): Promise<CreateVendorResult> {
   const { supabase, user, profile } = await getAuthenticatedProfile()
 
   if (!canManageVendors(profile.role)) {
@@ -176,6 +299,11 @@ export async function createVendor(values: VendorFormValues) {
   }
 
   const payload = normalizeVendorPayload(values)
+
+  if (!payload.email) {
+    throw new Error('Vendor email is required so the invite can be sent.')
+  }
+
   const { data, error } = await supabase
     .from('vendors')
     .insert({
@@ -199,8 +327,22 @@ export async function createVendor(values: VendorFormValues) {
     metadata: { status: data.status, category: data.category },
   })
 
+  const invite = await sendVendorInvite({
+    vendor: data,
+    organizationId: profile.organization_id,
+  })
+
+  await logVendorActivity({
+    organizationId: profile.organization_id,
+    actorId: user.id,
+    vendorId: data.id,
+    action: invite.sent ? 'vendor.invite_sent' : 'vendor.invite_failed',
+    message: invite.message,
+    metadata: { email: invite.email, sent: invite.sent },
+  })
+
   revalidatePath('/dashboard/vendors')
-  return data
+  return { vendor: data, invite }
 }
 
 export async function updateVendor(id: string, values: VendorFormValues) {

@@ -11,7 +11,7 @@ import {
   RFQWithDetails,
 } from '@/lib/rfqs'
 
-type RFQManagerRole = 'admin' | 'procurement_officer'
+type RFQManagerRole = 'procurement_officer'
 
 interface RFQProfile {
   organization_id: string | null
@@ -36,7 +36,11 @@ interface AttachmentInput {
 }
 
 function canManageRFQs(role: string | null): role is RFQManagerRole {
-  return role === 'admin' || role === 'procurement_officer'
+  return role === 'procurement_officer'
+}
+
+function canViewOrganizationRFQs(role: string | null) {
+  return ['admin', 'procurement_officer', 'manager'].includes(role || '')
 }
 
 function normalizeText(value?: string | null) {
@@ -73,6 +77,15 @@ async function getAuthenticatedProfile() {
     supabase,
     user,
     profile: profile as AuthenticatedRFQProfile,
+  }
+}
+
+export async function getRFQAccess() {
+  const { profile } = await getAuthenticatedProfile()
+
+  return {
+    role: profile.role,
+    canManage: canManageRFQs(profile.role),
   }
 }
 
@@ -182,7 +195,7 @@ export async function getRFQs(options: GetRFQsOptions = {}) {
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
 
-  if (!canManageRFQs(profile.role)) {
+  if (!canViewOrganizationRFQs(profile.role)) {
     if (!profile.vendor_id) {
       return []
     }
@@ -229,7 +242,7 @@ export async function getRFQById(id: string) {
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
 
-  if (!canManageRFQs(profile.role)) {
+  if (!canViewOrganizationRFQs(profile.role)) {
     request = request.eq('rfq_vendor_invitations.vendor_id', profile.vendor_id)
   }
 

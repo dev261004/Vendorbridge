@@ -6,7 +6,7 @@ import { CalendarDays, Eye, FileText, Pencil, Plus, Search, Users } from 'lucide
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import RFQModal from '@/components/RFQModal'
-import { getRFQs, updateRFQStatus } from '@/app/actions/rfqs'
+import { getRFQAccess, getRFQs, updateRFQStatus } from '@/app/actions/rfqs'
 import { getVendors } from '@/app/actions/vendors'
 import {
   RFQStatus,
@@ -26,6 +26,7 @@ export default function RFQsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<RFQStatusFilter>('all')
   const [error, setError] = useState<string | null>(null)
+  const [canManageRFQs, setCanManageRFQs] = useState(false)
 
   useEffect(() => {
     loadRFQData()
@@ -35,12 +36,14 @@ export default function RFQsPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [rfqData, vendorData] = await Promise.all([
+      const [rfqData, vendorData, access] = await Promise.all([
         getRFQs(),
         getVendors({ status: 'active' }),
+        getRFQAccess(),
       ])
       setRFQs(rfqData)
       setVendors(vendorData)
+      setCanManageRFQs(access.canManage)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load RFQs.')
     } finally {
@@ -79,11 +82,21 @@ export default function RFQsPage() {
   }
 
   const handleAddRFQ = () => {
+    if (!canManageRFQs) {
+      setError('Only procurement officers can create RFQs.')
+      return
+    }
+
     setSelectedRFQ(null)
     setIsModalOpen(true)
   }
 
   const handleEditRFQ = (rfqId: string) => {
+    if (!canManageRFQs) {
+      setError('Only procurement officers can edit RFQs.')
+      return
+    }
+
     setSelectedRFQ(rfqId)
     setIsModalOpen(true)
   }
@@ -95,6 +108,11 @@ export default function RFQsPage() {
   }
 
   const handleStatusChange = async (rfqId: string, status: RFQStatus) => {
+    if (!canManageRFQs) {
+      setError('Only procurement officers can update RFQ status.')
+      return
+    }
+
     if (!window.confirm(`Change this RFQ status to ${rfqStatusLabels[status]}?`)) {
       return
     }
@@ -136,16 +154,20 @@ export default function RFQsPage() {
             Requests for Quotation
           </h1>
           <p className="text-slate-400">
-            Create RFQs, manage line items, assign vendors, and send procurement requests.
+            {canManageRFQs
+              ? 'Create RFQs, manage line items, assign vendors, and send procurement requests.'
+              : 'View RFQs and track procurement request status.'}
           </p>
         </div>
-        <Button
-          onClick={handleAddRFQ}
-          className="w-fit bg-blue-600 text-white hover:bg-blue-700"
-        >
-          <Plus className="mr-2 size-4" />
-          New RFQ
-        </Button>
+        {canManageRFQs && (
+          <Button
+            onClick={handleAddRFQ}
+            className="w-fit bg-blue-600 text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 size-4" />
+            New RFQ
+          </Button>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
@@ -221,12 +243,14 @@ export default function RFQsPage() {
         ) : filteredRFQs.length === 0 ? (
           <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
             <p className="mb-4 text-slate-400">No RFQs found</p>
-            <Button
-              onClick={handleAddRFQ}
-              className="bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Create First RFQ
-            </Button>
+            {canManageRFQs && (
+              <Button
+                onClick={handleAddRFQ}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Create First RFQ
+              </Button>
+            )}
           </div>
         ) : (
           filteredRFQs.map((rfq) => (
@@ -286,16 +310,18 @@ export default function RFQsPage() {
                       View
                     </Button>
                   </Link>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
-                    onClick={() => handleEditRFQ(rfq.id)}
-                  >
-                    <Pencil className="mr-2 size-4" />
-                    Edit
-                  </Button>
-                  {rfq.status !== 'closed' && (
+                  {canManageRFQs && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
+                      onClick={() => handleEditRFQ(rfq.id)}
+                    >
+                      <Pencil className="mr-2 size-4" />
+                      Edit
+                    </Button>
+                  )}
+                  {canManageRFQs && rfq.status !== 'closed' && (
                     <Button
                       size="sm"
                       className="bg-red-600 text-white hover:bg-red-700"

@@ -37,6 +37,17 @@ export interface VendorFormValues {
   status: VendorStatus
 }
 
+export interface VendorInviteResult {
+  sent: boolean
+  email: string
+  message: string
+}
+
+export interface CreateVendorResult {
+  vendor: VendorRecord
+  invite: VendorInviteResult
+}
+
 export const vendorStatuses: Array<{
   value: VendorStatusFilter
   label: string

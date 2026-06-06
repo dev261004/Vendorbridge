@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   CheckCircle,
+  Loader2,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -53,6 +54,8 @@ export default function DashboardNavigation({
   const [isOpen, setIsOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<ProfileSummary | null>(null)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -82,9 +85,36 @@ export default function DashboardNavigation({
   }, [initialRole])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/auth/login')
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+    setLogoutError(null)
+
+    try {
+      const response = await fetch('/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      })
+
+      if (!response.ok) {
+        throw new Error('Unable to log out.')
+      }
+
+      const supabase = createClient()
+      await supabase.auth.signOut({ scope: 'local' })
+
+      setUser(null)
+      setProfile(null)
+      router.replace('/auth/login')
+      router.refresh()
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error ? error.message : 'Unable to log out.',
+      )
+      setIsLoggingOut(false)
+    }
   }
 
   const activeRole = profile?.role || initialRole
@@ -178,11 +208,22 @@ export default function DashboardNavigation({
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+            disabled={isLoggingOut}
+            aria-busy={isLoggingOut}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <LogOut className="w-5 h-5" />
-            <span className="text-sm font-medium">Logout</span>
+            {isLoggingOut ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <LogOut className="w-5 h-5" />
+            )}
+            <span className="text-sm font-medium">
+              {isLoggingOut ? 'Logging out...' : 'Logout'}
+            </span>
           </button>
+          {logoutError && (
+            <p className="px-4 text-xs text-red-300">{logoutError}</p>
+          )}
         </div>
       </aside>
 
