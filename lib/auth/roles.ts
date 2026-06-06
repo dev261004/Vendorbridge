@@ -3,25 +3,6 @@ export type AppRole =
   | 'procurement_officer'
   | 'manager'
   | 'vendor'
-<<<<<<< HEAD
-  | 'finance'
-
-export const publicSignupRoleOptions = [
-  {
-    value: 'procurement_officer',
-    label: 'Procurement Officer',
-    description: 'Create and manage RFQs, POs, and vendor evaluations.',
-  },
-  {
-    value: 'manager',
-    label: 'Manager',
-    description: 'Approve RFQs, review quotations, and oversee procurement workflows.',
-  },
-  {
-    value: 'finance',
-    label: 'Finance',
-    description: 'Process invoices, validate POs, and manage payment workflows.',
-=======
 
 export const roleOptions: Array<{
   value: AppRole
@@ -32,16 +13,10 @@ export const roleOptions: Array<{
     value: 'procurement_officer',
     label: 'Procurement Officer',
     description: 'Creates RFQs, compares quotations, and generates documents.',
->>>>>>> 09ad71f0402ba764e146b16d09ce87c69e2cdd89
   },
   {
     value: 'vendor',
     label: 'Vendor',
-<<<<<<< HEAD
-    description: 'Respond to RFQs, submit quotations, and track POs and invoices.',
-  },
-] as const
-=======
     description: 'Submits quotations and tracks RFQs, POs, and invoices.',
   },
   {
@@ -116,7 +91,7 @@ export function isAppRole(value: unknown): value is AppRole {
 
 export function canAccessDashboardRoute(pathname: string, role: AppRole) {
   const matchingRoute = dashboardRouteRoles
-    .filter((route) => pathname === route.href || pathname.startsWith(`${route.href}/`))
+    .filter((route) => pathname === route.href || pathname.startsWith(route.href + '/'))
     .sort((a, b) => b.href.length - a.href.length)[0]
 
   if (!matchingRoute) {
@@ -140,4 +115,3 @@ export function getDefaultDashboardRoute(role: AppRole) {
       return '/dashboard'
   }
 }
->>>>>>> 09ad71f0402ba764e146b16d09ce87c69e2cdd89

@@ -85,7 +85,7 @@ export async function createPurchaseOrder(poData: {
     throw error
   }
 
-  revalidateTag('purchase-orders')
+  revalidateTag('purchase-orders', { expire: 0 })
   return data[0]
 }
 
@@ -122,7 +122,7 @@ export async function updatePurchaseOrder(
     throw error
   }
 
-  revalidateTag('purchase-orders')
+  revalidateTag('purchase-orders', { expire: 0 })
   return data[0]
 }
 
@@ -148,7 +148,7 @@ export async function addPOItem(poId: string, item: {
     throw error
   }
 
-  revalidateTag('purchase-orders')
+  revalidateTag('purchase-orders', { expire: 0 })
   return data[0]
 }
 

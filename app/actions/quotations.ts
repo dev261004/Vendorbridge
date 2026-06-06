@@ -44,7 +44,7 @@ export async function createQuotation(quotationData: {
     throw error
   }
 
-  revalidateTag('quotations')
+  revalidateTag('quotations', { expire: 0 })
   return data[0]
 }
 
@@ -72,7 +72,7 @@ export async function updateQuotation(
     throw error
   }
 
-  revalidateTag('quotations')
+  revalidateTag('quotations', { expire: 0 })
   return data[0]
 }
 
@@ -98,7 +98,7 @@ export async function addQuotationItem(quotationId: string, item: {
     throw error
   }
 
-  revalidateTag('quotations')
+  revalidateTag('quotations', { expire: 0 })
   return data[0]
 }
 

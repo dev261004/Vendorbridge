@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2, LockKeyhole, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
