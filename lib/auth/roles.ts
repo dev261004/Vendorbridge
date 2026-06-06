@@ -80,6 +80,10 @@ export const dashboardRouteRoles: Array<{
     roles: ['admin'],
   },
   {
+    href: '/dashboard/activity',
+    roles: ['admin', 'procurement_officer', 'manager', 'vendor'],
+  },
+  {
     href: '/dashboard/settings',
     roles: ['admin', 'procurement_officer', 'manager', 'vendor'],
   },

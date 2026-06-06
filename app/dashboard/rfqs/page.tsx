@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import RFQModal from '@/components/RFQModal'
 import { getRFQAccess, getRFQs, updateRFQStatus } from '@/app/actions/rfqs'
-import { getVendors } from '@/app/actions/vendors'
 import {
   RFQStatus,
   RFQStatusFilter,
@@ -15,11 +14,9 @@ import {
   rfqStatusLabels,
   rfqStatuses,
 } from '@/lib/rfqs'
-import { VendorRecord } from '@/lib/vendors'
 
 export default function RFQsPage() {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([])
-  const [vendors, setVendors] = useState<VendorRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRFQ, setSelectedRFQ] = useState<string | null>(null)
@@ -36,13 +33,11 @@ export default function RFQsPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [rfqData, vendorData, access] = await Promise.all([
+      const [rfqData, access] = await Promise.all([
         getRFQs(),
-        getVendors({ status: 'active' }),
         getRFQAccess(),
       ])
       setRFQs(rfqData)
-      setVendors(vendorData)
       setCanManageRFQs(access.canManage)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load RFQs.')
@@ -341,7 +336,6 @@ export default function RFQsPage() {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         rfqId={selectedRFQ}
-        vendors={vendors}
       />
     </div>
   )

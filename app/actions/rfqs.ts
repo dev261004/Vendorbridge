@@ -10,6 +10,7 @@ import {
   RFQStatusFilter,
   RFQWithDetails,
 } from '@/lib/rfqs'
+import { VendorRecord } from '@/lib/vendors'
 
 type RFQManagerRole = 'procurement_officer'
 
@@ -89,6 +90,28 @@ export async function getRFQAccess() {
   }
 }
 
+export async function getActiveRFQVendors() {
+  const { supabase, profile } = await getAuthenticatedProfile()
+
+  if (!canManageRFQs(profile.role)) {
+    return []
+  }
+
+  const { data, error } = await supabase
+    .from('vendors')
+    .select('*')
+    .eq('organization_id', profile.organization_id)
+    .eq('status', 'active')
+    .order('name', { ascending: true })
+    .returns<VendorRecord[]>()
+
+  if (error) {
+    throw error
+  }
+
+  return data || []
+}
+
 function generateRFQNumber() {
   const year = new Date().getFullYear()
   const random = Math.floor(100000 + Math.random() * 900000)
@@ -113,6 +136,47 @@ async function logRFQActivity(params: {
     message: params.message,
     metadata: params.metadata || {},
   })
+}
+
+async function notifyAssignedVendors(params: {
+  organizationId: string
+  rfqId: string
+  vendorIds: string[]
+  notificationTitle: string
+  message: string
+}) {
+  const uniqueVendorIds = Array.from(new Set(params.vendorIds)).filter(Boolean)
+
+  if (uniqueVendorIds.length === 0) {
+    return
+  }
+
+  const supabase = await createClient()
+  const { data: vendorProfiles } = await supabase
+    .from('profiles')
+    .select('id, vendor_id')
+    .eq('organization_id', params.organizationId)
+    .eq('role', 'vendor')
+    .in('vendor_id', uniqueVendorIds)
+
+  const userIds = Array.from(
+    new Set((vendorProfiles || []).map((profile) => profile.id))
+  )
+
+  if (userIds.length === 0) {
+    return
+  }
+
+  await supabase.from('notifications').insert(
+    userIds.map((userId) => ({
+      organization_id: params.organizationId,
+      user_id: userId,
+      title: params.notificationTitle,
+      message: params.message,
+      entity_type: 'rfq',
+      entity_id: params.rfqId,
+    }))
+  )
 }
 
 async function replaceRFQItems(
@@ -321,6 +385,16 @@ export async function createRFQ(values: RFQFormValues) {
     },
   })
 
+  if (values.status === 'published') {
+    await notifyAssignedVendors({
+      organizationId: profile.organization_id,
+      rfqId: data.id,
+      vendorIds: values.vendor_ids,
+      notificationTitle: 'New RFQ assigned',
+      message: `${data.rfq_number} - ${data.title} is open for quotation submission.`,
+    })
+  }
+
   revalidatePath('/dashboard/rfqs')
   return data
 }
@@ -379,6 +453,16 @@ export async function updateRFQ(id: string, values: RFQFormValues) {
       item_count: values.items.length,
     },
   })
+
+  if (values.status === 'published') {
+    await notifyAssignedVendors({
+      organizationId: profile.organization_id,
+      rfqId: data.id,
+      vendorIds: values.vendor_ids,
+      notificationTitle: 'RFQ updated',
+      message: `${data.rfq_number} - ${data.title} was updated by procurement.`,
+    })
+  }
 
   revalidatePath('/dashboard/rfqs')
   revalidatePath(`/dashboard/rfqs/${id}`)

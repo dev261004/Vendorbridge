@@ -1,44 +1,104 @@
 'use client'
 
-import { useParams } from 'next/navigation'
-import { useAppStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import {
+  CheckCircle,
+  ChevronLeft,
+  Download,
+  Mail,
+  Printer,
+  RefreshCw,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  getInvoiceById,
+  sendInvoiceEmail,
+  updateInvoiceStatus,
+} from '@/app/actions/invoices'
+import {
+  InvoiceStatus,
+  InvoiceWithDetails,
+  invoiceStatusLabels,
+  invoiceStatuses,
+} from '@/lib/procurement-documents'
+
+const selectClassName =
+  'h-10 rounded-lg border border-slate-600 bg-slate-700 px-3 text-sm text-white outline-none focus-visible:border-blue-500 print:hidden'
+const nativeOptionStyle = {
+  backgroundColor: '#0f172a',
+  color: '#f8fafc',
+}
 
 export default function InvoiceDetailPage() {
   const params = useParams()
   const invoiceId = params.id as string
-  const { getInvoice, getVendor } = useAppStore()
+  const [invoice, setInvoice] = useState<InvoiceWithDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  const invoice = getInvoice(invoiceId)
-  const vendor = invoice ? getVendor(invoice.vendorId) : null
+  useEffect(() => {
+    loadInvoice()
+  }, [invoiceId])
 
-  if (!invoice) {
-    return (
-      <div className="p-8 bg-slate-900 min-h-screen">
-        <div className="text-center">
-          <p className="text-slate-400 mb-4">Invoice not found</p>
-          <Link href="/dashboard/invoices">
-            <Button className="bg-blue-600 hover:bg-blue-700">Back to Invoices</Button>
-          </Link>
-        </div>
-      </div>
-    )
+  const loadInvoice = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await getInvoiceById(invoiceId)
+      setInvoice(data)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load invoice.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return 'text-green-400 bg-green-900/30'
-      case 'pending':
-        return 'text-yellow-400 bg-yellow-900/30'
-      case 'partial':
-        return 'text-orange-400 bg-orange-900/30'
-      case 'overdue':
-        return 'text-red-400 bg-red-900/30'
-      default:
-        return 'text-slate-400 bg-slate-700/30'
+  const handleStatusChange = async (status: InvoiceStatus) => {
+    if (!invoice) return
+
+    try {
+      setIsUpdating(true)
+      setError(null)
+      setSuccess(null)
+      await updateInvoiceStatus(invoice.id, status)
+      setSuccess('Invoice status updated.')
+      await loadInvoice()
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : 'Failed to update invoice status.'
+      )
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    if (!invoice) return
+
+    try {
+      setIsUpdating(true)
+      setError(null)
+      setSuccess(null)
+      const result = await sendInvoiceEmail(invoice.id)
+
+      if (!result.sent) {
+        window.location.href = `mailto:${encodeURIComponent(
+          result.recipient
+        )}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(
+          result.body
+        )}`
+      }
+
+      setSuccess(result.message)
+      await loadInvoice()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to send invoice.')
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -46,142 +106,298 @@ export default function InvoiceDetailPage() {
     window.print()
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 p-8">
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center text-slate-400">
+          Loading invoice...
+        </div>
+      </div>
+    )
+  }
+
+  if (!invoice) {
+    return (
+      <div className="min-h-screen bg-slate-900 p-8">
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
+          <p className="mb-4 text-slate-400">{error || 'Invoice not found.'}</p>
+          <Link href="/dashboard/invoices">
+            <Button className="bg-blue-600 text-white hover:bg-blue-700">
+              Back to Invoices
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const taxAmount =
+    Number(invoice.cgst_amount || 0) + Number(invoice.sgst_amount || 0)
+
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard/invoices">
-          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Back
+    <div className="min-h-screen bg-slate-900 p-8 print:bg-white print:p-0">
+      <div className="mb-8 flex flex-col gap-4 print:hidden lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/invoices">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-400 hover:text-white"
+            >
+              <ChevronLeft className="mr-2 size-4" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Invoice {invoice.invoice_number}
+            </h1>
+            <p className="text-slate-400">
+              {invoice.vendors?.name || 'Unknown vendor'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={invoice.status}
+            disabled={isUpdating}
+            onChange={(event) =>
+              handleStatusChange(event.target.value as InvoiceStatus)
+            }
+            className={selectClassName}
+          >
+            {invoiceStatuses.map((status) => (
+              <option key={status} value={status} style={nativeOptionStyle}>
+                {invoiceStatusLabels[status]}
+              </option>
+            ))}
+          </select>
+          {invoice.status !== 'paid' && (
+            <Button
+              disabled={isUpdating}
+              onClick={() => handleStatusChange('paid')}
+              className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+            >
+              <CheckCircle className="mr-2 size-4" />
+              Mark Paid
+            </Button>
+          )}
+          <Button
+            disabled={isUpdating}
+            onClick={handleSendEmail}
+            className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            <Mail className="mr-2 size-4" />
+            Send Email
           </Button>
-        </Link>
-      </div>
-
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Invoice {invoice.invoiceNumber}
-          </h1>
-          <p className="text-slate-400">From: {vendor?.name}</p>
+          <Button
+            onClick={handlePrint}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <Download className="mr-2 size-4" />
+            Download PDF
+          </Button>
+          <Button
+            onClick={handlePrint}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <Printer className="mr-2 size-4" />
+            Print
+          </Button>
+          <Button
+            onClick={loadInvoice}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <RefreshCw className="mr-2 size-4" />
+            Refresh
+          </Button>
         </div>
-        <Button
-          onClick={handlePrint}
-          className="bg-slate-700 hover:bg-slate-600 text-white"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Print / Save as PDF
-        </Button>
       </div>
 
-      {/* Status Badge */}
-      <div className="mb-8">
-        <span
-          className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${getStatusColor(invoice.paymentStatus)}`}
-        >
-          {invoice.paymentStatus.replace('_', ' ').toUpperCase()}
-        </span>
-      </div>
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300 print:hidden">
+          {error}
+        </div>
+      )}
 
-      {/* Invoice Document */}
-      <div className="bg-white text-black p-8 rounded-lg shadow-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 border-b-2 border-gray-300 pb-6">
+      {success && (
+        <div className="mb-4 rounded-lg border border-green-700 bg-green-900/30 px-4 py-3 text-sm text-green-300 print:hidden">
+          {success}
+        </div>
+      )}
+
+      <div className="mx-auto max-w-5xl rounded-lg bg-white p-8 text-black shadow-lg print:max-w-none print:rounded-none print:p-8 print:shadow-none">
+        <div className="mb-8 flex items-start justify-between border-b-2 border-slate-300 pb-6">
           <div>
-            <h2 className="text-2xl font-bold">INVOICE</h2>
-            <p className="text-gray-600 text-sm">{invoice.invoiceNumber}</p>
+            <h2 className="text-3xl font-bold">INVOICE</h2>
+            <p className="text-sm text-slate-600">{invoice.invoice_number}</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-600">
-              Invoice Date: {new Date(invoice.invoiceDate).toLocaleDateString()}
-            </p>
-            <p className="text-sm text-gray-600">
-              Due Date: {new Date(invoice.dueDate).toLocaleDateString()}
-            </p>
+          <div className="text-right text-sm text-slate-600">
+            <p>Invoice Date: {formatDate(invoice.invoice_date)}</p>
+            <p>Due Date: {formatDate(invoice.due_date)}</p>
+            <p>Status: {invoiceStatusLabels[invoice.status]}</p>
           </div>
         </div>
 
-        {/* Vendor Details */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          <div>
-            <h3 className="font-bold mb-2">BILLED FROM</h3>
-            <p className="font-semibold">{vendor?.name}</p>
-            <p className="text-sm text-gray-600">{vendor?.address}</p>
-            <p className="text-sm text-gray-600">
-              {vendor?.city}, {vendor?.country}
+        <div className="mb-8 grid gap-8 md:grid-cols-2">
+          <DocumentBlock title="Vendor Details">
+            <p className="font-semibold">{invoice.vendors?.name || '-'}</p>
+            <p>{invoice.vendors?.contact_person || ''}</p>
+            <p>{invoice.vendors?.email || ''}</p>
+            <p>{invoice.vendors?.phone || ''}</p>
+            <p>{invoice.vendors?.address || ''}</p>
+            <p>
+              {[invoice.vendors?.city, invoice.vendors?.state]
+                .filter(Boolean)
+                .join(', ')}
             </p>
-            <p className="text-sm text-gray-600">{vendor?.email}</p>
-            <p className="text-sm text-gray-600">{vendor?.phoneNumber}</p>
-          </div>
-          <div>
-            <h3 className="font-bold mb-2">PAYMENT INFORMATION</h3>
-            <p className="text-sm">
-              <span className="font-semibold">Status:</span>{' '}
-              {invoice.paymentStatus.toUpperCase()}
+            <p>{invoice.vendors?.gst_number || ''}</p>
+          </DocumentBlock>
+
+          <DocumentBlock title="Procurement Reference">
+            <p>PO: {invoice.purchase_orders?.po_number || '-'}</p>
+            <p>RFQ: {invoice.purchase_orders?.rfqs?.rfq_number || '-'}</p>
+            <p>
+              Quotation:{' '}
+              {invoice.purchase_orders?.quotations?.quotation_number || '-'}
             </p>
-            {invoice.paymentMethod && (
-              <p className="text-sm">
-                <span className="font-semibold">Method:</span> {invoice.paymentMethod}
+            <p>Payment Terms: {invoice.purchase_orders?.payment_terms || '-'}</p>
+            {invoice.email_sent_at && (
+              <p>
+                Sent to {invoice.email_sent_to} on{' '}
+                {formatDate(invoice.email_sent_at)}
               </p>
             )}
-            <p className="text-sm mt-4">
-              <span className="font-semibold">Reference PO:</span>
-            </p>
-            <p className="text-sm text-gray-600">{invoice.poId}</p>
-          </div>
+          </DocumentBlock>
         </div>
 
-        {/* Line Items Table */}
-        <div className="mb-8">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border border-gray-400 px-4 py-2 text-left">Description</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Quantity</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Unit Price</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items.map((item) => (
-                <tr key={item.id} className="border-b border-gray-300">
-                  <td className="border border-gray-400 px-4 py-2">{item.description}</td>
-                  <td className="border border-gray-400 px-4 py-2 text-right">
-                    {item.quantity} {item.unit}
-                  </td>
-                  <td className="border border-gray-400 px-4 py-2 text-right">
-                    ${item.unitPrice.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-400 px-4 py-2 text-right font-semibold">
-                    ${item.totalPrice.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-gray-100">
-                <td colSpan={3} className="border border-gray-400 px-4 py-2 text-right font-bold">
-                  TOTAL AMOUNT DUE:
+        <table className="mb-8 w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-slate-200">
+              <th className="border border-slate-400 px-4 py-2 text-left">
+                Description
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Quantity
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Unit Price
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.invoice_items.map((item) => (
+              <tr key={item.id}>
+                <td className="border border-slate-400 px-4 py-2">
+                  {item.item_name}
                 </td>
-                <td className="border border-gray-400 px-4 py-2 text-right font-bold text-lg">
-                  ${invoice.totalAmount.toFixed(2)}
+                <td className="border border-slate-400 px-4 py-2 text-right">
+                  {Number(item.quantity || 0).toLocaleString('en-IN')}{' '}
+                  {item.unit}
+                </td>
+                <td className="border border-slate-400 px-4 py-2 text-right">
+                  {formatCurrency(Number(item.unit_price || 0))}
+                </td>
+                <td className="border border-slate-400 px-4 py-2 text-right font-semibold">
+                  {formatCurrency(Number(item.total_price || 0))}
                 </td>
               </tr>
-            </tbody>
-          </table>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="ml-auto w-full max-w-sm space-y-2 text-sm">
+          <TotalLine
+            label="Subtotal"
+            value={formatCurrency(Number(invoice.subtotal || 0))}
+          />
+          <TotalLine
+            label={`CGST (${Number(invoice.cgst_percent || 0)}%)`}
+            value={formatCurrency(Number(invoice.cgst_amount || 0))}
+          />
+          <TotalLine
+            label={`SGST (${Number(invoice.sgst_percent || 0)}%)`}
+            value={formatCurrency(Number(invoice.sgst_amount || 0))}
+          />
+          <TotalLine label="Tax Total" value={formatCurrency(taxAmount)} />
+          <TotalLine
+            label="Total Amount Due"
+            value={formatCurrency(Number(invoice.total_amount || 0))}
+            strong
+          />
         </div>
 
-        {/* Notes */}
         {invoice.notes && (
-          <div className="bg-gray-100 p-4 rounded mb-8">
-            <h3 className="font-bold mb-2">NOTES</h3>
-            <p className="text-sm text-gray-700">{invoice.notes}</p>
+          <div className="mt-8 rounded border border-slate-300 bg-slate-100 p-4">
+            <h3 className="mb-2 font-bold">Notes</h3>
+            <p className="text-sm text-slate-700">{invoice.notes}</p>
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-8 pt-8 border-t-2 border-gray-400 text-xs text-gray-600">
-          <p>Please process payment by the due date. Thank you for your business!</p>
+        <div className="mt-8 border-t-2 border-slate-300 pt-6 text-xs text-slate-600">
+          Please process payment by the due date. This invoice was generated by
+          VendorBridge.
         </div>
       </div>
     </div>
   )
+}
+
+function DocumentBlock({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 font-bold uppercase">{title}</h3>
+      <div className="space-y-1 text-sm text-slate-700">{children}</div>
+    </div>
+  )
+}
+
+function TotalLine({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string
+  value: string
+  strong?: boolean
+}) {
+  return (
+    <div
+      className={`flex justify-between border-b border-slate-300 pb-2 ${
+        strong ? 'text-lg font-bold' : ''
+      }`}
+    >
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function formatCurrency(value: number) {
+  return `Rs. ${Number(value || 0).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }

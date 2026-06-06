@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   addRFQAttachment,
   createRFQ,
+  getActiveRFQVendors,
   getRFQById,
   updateRFQ,
 } from '@/app/actions/rfqs'
@@ -45,26 +46,27 @@ interface RFQModalProps {
   isOpen: boolean
   onClose: () => void
   rfqId: string | null
-  vendors: VendorRecord[]
 }
 
 export default function RFQModal({
   isOpen,
   onClose,
   rfqId,
-  vendors,
 }: RFQModalProps) {
   const [form, setForm] = useState<RFQFormValues>(defaultForm)
   const [draftItem, setDraftItem] = useState<RFQItemInput>(emptyItem)
   const [attachments, setAttachments] = useState<File[]>([])
   const [existingAttachments, setExistingAttachments] = useState<string[]>([])
+  const [availableVendors, setAvailableVendors] = useState<VendorRecord[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(false)
+  const [isFetchingVendors, setIsFetchingVendors] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [vendorError, setVendorError] = useState<string | null>(null)
 
   const activeVendors = useMemo(
-    () => vendors.filter((vendor) => vendor.status === 'active'),
-    [vendors]
+    () => availableVendors.filter((vendor) => vendor.status === 'active'),
+    [availableVendors]
   )
 
   useEffect(() => {
@@ -114,11 +116,54 @@ export default function RFQModal({
     loadRFQ()
   }, [isOpen, rfqId])
 
+  useEffect(() => {
+    let isCancelled = false
+
+    const loadActiveVendors = async () => {
+      if (!isOpen) {
+        setAvailableVendors([])
+        setVendorError(null)
+        setIsFetchingVendors(false)
+        return
+      }
+
+      try {
+        setIsFetchingVendors(true)
+        setVendorError(null)
+        const vendors = await getActiveRFQVendors()
+
+        if (!isCancelled) {
+          setAvailableVendors(vendors)
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setVendorError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to load active vendors.'
+          )
+          setAvailableVendors([])
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsFetchingVendors(false)
+        }
+      }
+    }
+
+    loadActiveVendors()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [isOpen])
+
   const resetForm = () => {
     setForm(defaultForm)
     setDraftItem(emptyItem)
     setAttachments([])
     setExistingAttachments([])
+    setVendorError(null)
     setFormError(null)
   }
 
@@ -505,7 +550,15 @@ export default function RFQModal({
                       </span>
                     </div>
 
-                    {activeVendors.length === 0 ? (
+                    {isFetchingVendors ? (
+                      <p className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-sm text-slate-500">
+                        Loading active vendors...
+                      </p>
+                    ) : vendorError ? (
+                      <p className="rounded-lg border border-red-700 bg-red-900/30 p-3 text-sm text-red-300">
+                        {vendorError}
+                      </p>
+                    ) : activeVendors.length === 0 ? (
                       <p className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-sm text-slate-500">
                         No active vendors found. Add and activate vendors before
                         sending RFQs.

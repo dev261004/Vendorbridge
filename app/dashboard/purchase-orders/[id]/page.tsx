@@ -1,47 +1,77 @@
 'use client'
 
-import { useParams } from 'next/navigation'
-import { useAppStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { ChevronLeft, Download, Printer, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  getPurchaseOrderById,
+  updatePurchaseOrderStatus,
+} from '@/app/actions/purchase-orders'
+import {
+  PurchaseOrderStatus,
+  PurchaseOrderWithDetails,
+  purchaseOrderStatusLabels,
+  purchaseOrderStatuses,
+} from '@/lib/procurement-documents'
 
-export default function PODetailPage() {
+const selectClassName =
+  'h-10 rounded-lg border border-slate-600 bg-slate-700 px-3 text-sm text-white outline-none focus-visible:border-blue-500 print:hidden'
+const nativeOptionStyle = {
+  backgroundColor: '#0f172a',
+  color: '#f8fafc',
+}
+
+export default function PurchaseOrderDetailPage() {
   const params = useParams()
-  const poId = params.id as string
-  const { getPO, getVendor, getRFQ } = useAppStore()
+  const purchaseOrderId = params.id as string
+  const [purchaseOrder, setPurchaseOrder] =
+    useState<PurchaseOrderWithDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  const po = getPO(poId)
-  const vendor = po ? getVendor(po.vendorId) : null
-  const rfq = po ? getRFQ(po.rfqId) : null
+  useEffect(() => {
+    loadPurchaseOrder()
+  }, [purchaseOrderId])
 
-  if (!po) {
-    return (
-      <div className="p-8 bg-slate-900 min-h-screen">
-        <div className="text-center">
-          <p className="text-slate-400 mb-4">Purchase Order not found</p>
-          <Link href="/dashboard/purchase-orders">
-            <Button className="bg-blue-600 hover:bg-blue-700">Back to POs</Button>
-          </Link>
-        </div>
-      </div>
-    )
+  const loadPurchaseOrder = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const data = await getPurchaseOrderById(purchaseOrderId)
+      setPurchaseOrder(data)
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to load purchase order.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-400 bg-green-900/30'
-      case 'sent':
-        return 'text-blue-400 bg-blue-900/30'
-      case 'acknowledged':
-        return 'text-purple-400 bg-purple-900/30'
-      case 'partial_delivery':
-        return 'text-yellow-400 bg-yellow-900/30'
-      case 'cancelled':
-        return 'text-red-400 bg-red-900/30'
-      default:
-        return 'text-slate-400 bg-slate-700/30'
+  const handleStatusChange = async (status: PurchaseOrderStatus) => {
+    if (!purchaseOrder) return
+
+    try {
+      setIsUpdating(true)
+      setError(null)
+      setSuccess(null)
+      await updatePurchaseOrderStatus(purchaseOrder.id, status)
+      setSuccess('Purchase order status updated.')
+      await loadPurchaseOrder()
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update purchase order status.'
+      )
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -49,159 +79,275 @@ export default function PODetailPage() {
     window.print()
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 p-8">
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center text-slate-400">
+          Loading purchase order...
+        </div>
+      </div>
+    )
+  }
+
+  if (!purchaseOrder) {
+    return (
+      <div className="min-h-screen bg-slate-900 p-8">
+        <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
+          <p className="mb-4 text-slate-400">
+            {error || 'Purchase order not found.'}
+          </p>
+          <Link href="/dashboard/purchase-orders">
+            <Button className="bg-blue-600 text-white hover:bg-blue-700">
+              Back to Purchase Orders
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const invoice = purchaseOrder.invoices?.[0]
+
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard/purchase-orders">
-          <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Back
+    <div className="min-h-screen bg-slate-900 p-8 print:bg-white print:p-0">
+      <div className="mb-8 flex flex-col gap-4 print:hidden lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/purchase-orders">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-400 hover:text-white"
+            >
+              <ChevronLeft className="mr-2 size-4" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Purchase Order {purchaseOrder.po_number}
+            </h1>
+            <p className="text-slate-400">
+              {purchaseOrder.vendors?.name || 'Unknown vendor'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={purchaseOrder.status}
+            disabled={isUpdating}
+            onChange={(event) =>
+              handleStatusChange(event.target.value as PurchaseOrderStatus)
+            }
+            className={selectClassName}
+          >
+            {purchaseOrderStatuses.map((status) => (
+              <option key={status} value={status} style={nativeOptionStyle}>
+                {purchaseOrderStatusLabels[status]}
+              </option>
+            ))}
+          </select>
+          {invoice && (
+            <Link href={`/dashboard/invoices/${invoice.id}`}>
+              <Button className="bg-green-600 text-white hover:bg-green-700">
+                View Invoice
+              </Button>
+            </Link>
+          )}
+          <Button
+            onClick={handlePrint}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <Download className="mr-2 size-4" />
+            Download PDF
           </Button>
-        </Link>
-      </div>
-
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Purchase Order {po.poNumber}
-          </h1>
-          <p className="text-slate-400">Vendor: {vendor?.name}</p>
+          <Button
+            onClick={handlePrint}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <Printer className="mr-2 size-4" />
+            Print
+          </Button>
+          <Button
+            onClick={loadPurchaseOrder}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            <RefreshCw className="mr-2 size-4" />
+            Refresh
+          </Button>
         </div>
-        <Button
-          onClick={handlePrint}
-          className="bg-slate-700 hover:bg-slate-600 text-white"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Print / Save as PDF
-        </Button>
       </div>
 
-      {/* Status Badge */}
-      <div className="mb-8">
-        <span
-          className={`inline-block px-4 py-2 rounded-lg text-sm font-medium ${getStatusColor(po.status)}`}
-        >
-          {po.status.replace('_', ' ').toUpperCase()}
-        </span>
-      </div>
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300 print:hidden">
+          {error}
+        </div>
+      )}
 
-      {/* PO Document */}
-      <div className="bg-white text-black p-8 rounded-lg shadow-lg mb-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 border-b-2 border-gray-300 pb-6">
+      {success && (
+        <div className="mb-4 rounded-lg border border-green-700 bg-green-900/30 px-4 py-3 text-sm text-green-300 print:hidden">
+          {success}
+        </div>
+      )}
+
+      <div className="mx-auto max-w-5xl rounded-lg bg-white p-8 text-black shadow-lg print:max-w-none print:rounded-none print:p-8 print:shadow-none">
+        <div className="mb-8 flex items-start justify-between border-b-2 border-slate-300 pb-6">
           <div>
-            <h2 className="text-2xl font-bold">PURCHASE ORDER</h2>
-            <p className="text-gray-600 text-sm">{po.poNumber}</p>
+            <h2 className="text-3xl font-bold">PURCHASE ORDER</h2>
+            <p className="text-sm text-slate-600">{purchaseOrder.po_number}</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-600">
-              Order Date: {new Date(po.orderDate).toLocaleDateString()}
-            </p>
-            <p className="text-sm text-gray-600">
-              Delivery Date: {new Date(po.deliveryDate).toLocaleDateString()}
-            </p>
+          <div className="text-right text-sm text-slate-600">
+            <p>PO Date: {formatDate(purchaseOrder.po_date)}</p>
+            <p>Delivery Date: {formatDate(purchaseOrder.delivery_date)}</p>
+            <p>Status: {purchaseOrderStatusLabels[purchaseOrder.status]}</p>
           </div>
         </div>
 
-        {/* Vendor Details */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          <div>
-            <h3 className="font-bold mb-2">VENDOR DETAILS</h3>
-            <p className="font-semibold">{vendor?.name}</p>
-            <p className="text-sm text-gray-600">{vendor?.address}</p>
-            <p className="text-sm text-gray-600">
-              {vendor?.city}, {vendor?.country}
+        <div className="mb-8 grid gap-8 md:grid-cols-2">
+          <DocumentBlock title="Vendor Details">
+            <p className="font-semibold">
+              {purchaseOrder.vendors?.name || 'Unknown vendor'}
             </p>
-            <p className="text-sm text-gray-600">{vendor?.email}</p>
-            <p className="text-sm text-gray-600">{vendor?.phoneNumber}</p>
-          </div>
-          <div>
-            <h3 className="font-bold mb-2">PAYMENT TERMS</h3>
-            <p className="text-sm">{po.paymentTerms}</p>
-            {po.notes && (
-              <>
-                <h3 className="font-bold mt-4 mb-2">NOTES</h3>
-                <p className="text-sm text-gray-700">{po.notes}</p>
-              </>
-            )}
-          </div>
+            <p>{purchaseOrder.vendors?.contact_person || ''}</p>
+            <p>{purchaseOrder.vendors?.email || ''}</p>
+            <p>{purchaseOrder.vendors?.phone || ''}</p>
+            <p>{purchaseOrder.vendors?.address || ''}</p>
+            <p>
+              {[purchaseOrder.vendors?.city, purchaseOrder.vendors?.state]
+                .filter(Boolean)
+                .join(', ')}
+            </p>
+            <p>{purchaseOrder.vendors?.gst_number || ''}</p>
+          </DocumentBlock>
+
+          <DocumentBlock title="Procurement Reference">
+            <p>RFQ: {purchaseOrder.rfqs?.rfq_number || '-'}</p>
+            <p>RFQ Title: {purchaseOrder.rfqs?.title || '-'}</p>
+            <p>Quotation: {purchaseOrder.quotations?.quotation_number || '-'}</p>
+            <p>Payment Terms: {purchaseOrder.payment_terms || '-'}</p>
+          </DocumentBlock>
         </div>
 
-        {/* Line Items Table */}
-        <div className="mb-8">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border border-gray-400 px-4 py-2 text-left">Description</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Quantity</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Unit Price</th>
-                <th className="border border-gray-400 px-4 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {po.items.map((item) => (
-                <tr key={item.id} className="border-b border-gray-300">
-                  <td className="border border-gray-400 px-4 py-2">{item.description}</td>
-                  <td className="border border-gray-400 px-4 py-2 text-right">
-                    {item.quantity} {item.unit}
-                  </td>
-                  <td className="border border-gray-400 px-4 py-2 text-right">
-                    ${item.unitPrice.toFixed(2)}
-                  </td>
-                  <td className="border border-gray-400 px-4 py-2 text-right font-semibold">
-                    ${item.totalPrice.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-gray-100">
-                <td colSpan={3} className="border border-gray-400 px-4 py-2 text-right font-bold">
-                  TOTAL:
+        <table className="mb-8 w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-slate-200">
+              <th className="border border-slate-400 px-4 py-2 text-left">
+                Description
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Quantity
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Unit Price
+              </th>
+              <th className="border border-slate-400 px-4 py-2 text-right">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {purchaseOrder.purchase_order_items.map((item) => (
+              <tr key={item.id}>
+                <td className="border border-slate-400 px-4 py-2">
+                  {item.item_name}
                 </td>
-                <td className="border border-gray-400 px-4 py-2 text-right font-bold text-lg">
-                  ${po.totalAmount.toFixed(2)}
+                <td className="border border-slate-400 px-4 py-2 text-right">
+                  {Number(item.quantity || 0).toLocaleString('en-IN')}{' '}
+                  {item.unit}
+                </td>
+                <td className="border border-slate-400 px-4 py-2 text-right">
+                  {formatCurrency(Number(item.unit_price || 0))}
+                </td>
+                <td className="border border-slate-400 px-4 py-2 text-right font-semibold">
+                  {formatCurrency(Number(item.total_price || 0))}
                 </td>
               </tr>
-            </tbody>
-          </table>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="ml-auto w-full max-w-sm space-y-2 text-sm">
+          <TotalLine
+            label="Subtotal"
+            value={formatCurrency(Number(purchaseOrder.subtotal || 0))}
+          />
+          <TotalLine
+            label="GST"
+            value={formatCurrency(Number(purchaseOrder.gst_amount || 0))}
+          />
+          <TotalLine
+            label="Total"
+            value={formatCurrency(Number(purchaseOrder.total_amount || 0))}
+            strong
+          />
         </div>
 
-        {/* Delivery Status */}
-        {po.items.some((item) => item.receivedQuantity !== undefined) && (
-          <div className="bg-gray-100 p-4 rounded">
-            <h3 className="font-bold mb-3">DELIVERY STATUS</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-200">
-                  <th className="px-2 py-1 text-left">Item</th>
-                  <th className="px-2 py-1 text-right">Ordered</th>
-                  <th className="px-2 py-1 text-right">Received</th>
-                  <th className="px-2 py-1 text-right">Pending</th>
-                </tr>
-              </thead>
-              <tbody>
-                {po.items.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-300">
-                    <td className="px-2 py-1">{item.description}</td>
-                    <td className="px-2 py-1 text-right">{item.quantity}</td>
-                    <td className="px-2 py-1 text-right text-green-600 font-semibold">
-                      {item.receivedQuantity || 0}
-                    </td>
-                    <td className="px-2 py-1 text-right text-orange-600">
-                      {item.quantity - (item.receivedQuantity || 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {purchaseOrder.notes && (
+          <div className="mt-8 rounded border border-slate-300 bg-slate-100 p-4">
+            <h3 className="mb-2 font-bold">Notes</h3>
+            <p className="text-sm text-slate-700">{purchaseOrder.notes}</p>
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-8 pt-8 border-t-2 border-gray-400 text-xs text-gray-600">
-          <p>This is an official Purchase Order. Please confirm receipt and keep for your records.</p>
+        <div className="mt-8 border-t-2 border-slate-300 pt-6 text-xs text-slate-600">
+          This is an official purchase order generated by VendorBridge.
         </div>
       </div>
     </div>
   )
+}
+
+function DocumentBlock({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <h3 className="mb-2 font-bold uppercase">{title}</h3>
+      <div className="space-y-1 text-sm text-slate-700">{children}</div>
+    </div>
+  )
+}
+
+function TotalLine({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string
+  value: string
+  strong?: boolean
+}) {
+  return (
+    <div
+      className={`flex justify-between border-b border-slate-300 pb-2 ${
+        strong ? 'text-lg font-bold' : ''
+      }`}
+    >
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function formatCurrency(value: number) {
+  return `Rs. ${Number(value || 0).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }

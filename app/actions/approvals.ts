@@ -98,6 +98,33 @@ async function logApprovalActivity(params: {
   })
 }
 
+async function createNotifications(params: {
+  organizationId: string
+  userIds: string[]
+  title: string
+  message: string
+  entityType: string
+  entityId: string
+}) {
+  const uniqueUserIds = Array.from(new Set(params.userIds)).filter(Boolean)
+
+  if (uniqueUserIds.length === 0) {
+    return
+  }
+
+  const supabase = await createClient()
+  await supabase.from('notifications').insert(
+    uniqueUserIds.map((userId) => ({
+      organization_id: params.organizationId,
+      user_id: userId,
+      title: params.title,
+      message: params.message,
+      entity_type: params.entityType,
+      entity_id: params.entityId,
+    }))
+  )
+}
+
 export async function getApprovalWorkflowAccess() {
   const { profile } = await getAuthenticatedProfile()
 
@@ -261,6 +288,21 @@ export async function requestQuotationApproval(quotationId: string) {
     },
   })
 
+  const { data: managers } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('organization_id', profile.organization_id)
+    .eq('role', 'manager')
+
+  await createNotifications({
+    organizationId: profile.organization_id,
+    userIds: (managers || []).map((manager) => manager.id),
+    title: 'Approval request pending',
+    message: `${quotation.quotation_number} is waiting for manager approval.`,
+    entityType: 'approval_request',
+    entityId: approvalRequest.id,
+  })
+
   revalidatePath('/dashboard/approvals')
   revalidatePath('/dashboard/quotations')
   revalidatePath(`/dashboard/quotations/${quotation.id}`)
@@ -388,6 +430,21 @@ export async function submitApprovalDecision(
       remarks: finalRemarks,
       quotation_status: nextQuotationStatus,
     },
+  })
+
+  await createNotifications({
+    organizationId: profile.organization_id,
+    userIds: [approvalRequest.requested_by],
+    title:
+      decision === 'approved'
+        ? 'Approval request approved'
+        : 'Approval request rejected',
+    message:
+      decision === 'approved'
+        ? 'A quotation approval was approved and is ready for purchase order generation.'
+        : 'A quotation approval was rejected. Review manager remarks before continuing.',
+    entityType: 'approval_request',
+    entityId: approvalRequest.id,
   })
 
   revalidatePath('/dashboard/approvals')

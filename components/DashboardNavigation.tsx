@@ -9,6 +9,7 @@ import {
   Receipt,
   BarChart3,
   Settings,
+  Activity,
   LogOut,
   Menu,
   Sun,
@@ -32,6 +33,7 @@ const menuItems = [
   { icon: Package, label: 'Purchase Orders', href: '/dashboard/purchase-orders' },
   { icon: Receipt, label: 'Invoices', href: '/dashboard/invoices' },
   { icon: BarChart3, label: 'Reports', href: '/dashboard/reports' },
+  { icon: Activity, label: 'Activity', href: '/dashboard/activity' },
   { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ]
 
