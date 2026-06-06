@@ -1,17 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Star, Building2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Building2, Plus, Search, ShieldBan, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import VendorModal from '@/components/VendorModal'
 import VendorTable from '@/components/VendorTable'
-import { getVendors } from '@/app/actions/vendors'
+import { getVendors, updateVendorStatus } from '@/app/actions/vendors'
+import {
+  VendorRecord,
+  VendorStatus,
+  VendorStatusFilter,
+  vendorStatuses,
+} from '@/lib/vendors'
 
 export default function VendorsPage() {
-  const [vendors, setVendors] = useState<any[]>([])
+  const [vendors, setVendors] = useState<VendorRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<VendorStatusFilter>('all')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadVendors()
@@ -20,13 +30,68 @@ export default function VendorsPage() {
   const loadVendors = async () => {
     try {
       setIsLoading(true)
+      setError(null)
       const data = await getVendors()
       setVendors(data)
     } catch (error) {
-      console.error('Failed to load vendors:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load vendors.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const filteredVendors = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+
+    return vendors.filter((vendor) => {
+      const matchesStatus =
+        statusFilter === 'all' || vendor.status === statusFilter
+      const matchesSearch =
+        !query ||
+        [
+          vendor.name,
+          vendor.category,
+          vendor.gst_number,
+          vendor.contact_person,
+          vendor.email,
+          vendor.phone,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(query))
+
+      return matchesStatus && matchesSearch
+    })
+  }, [searchQuery, statusFilter, vendors])
+
+  const stats = useMemo(() => {
+    const active = vendors.filter((vendor) => vendor.status === 'active').length
+    const pending = vendors.filter((vendor) => vendor.status === 'pending').length
+    const blocked = vendors.filter((vendor) => vendor.status === 'blocked').length
+    const averageRating =
+      vendors.length === 0
+        ? '0.0'
+        : (
+            vendors.reduce(
+              (sum, vendor) => sum + Number(vendor.rating || 0),
+              0
+            ) / vendors.length
+          ).toFixed(1)
+
+    return {
+      total: vendors.length,
+      active,
+      pending,
+      blocked,
+      averageRating,
+    }
+  }, [vendors])
+
+  const getStatusCount = (status: VendorStatusFilter) => {
+    if (status === 'all') {
+      return vendors.length
+    }
+
+    return vendors.filter((vendor) => vendor.status === status).length
   }
 
   const handleAddVendor = () => {
@@ -45,65 +110,160 @@ export default function VendorsPage() {
     loadVendors()
   }
 
+  const handleStatusChange = async (
+    vendorId: string,
+    status: VendorStatus
+  ) => {
+    const vendor = vendors.find((item) => item.id === vendorId)
+    const statusText = status.charAt(0).toUpperCase() + status.slice(1)
+
+    if (
+      status !== 'active' &&
+      !window.confirm(`Change ${vendor?.name || 'this vendor'} to ${statusText}?`)
+    ) {
+      return
+    }
+
+    try {
+      setError(null)
+      const updatedVendor = await updateVendorStatus(vendorId, status)
+      setVendors((currentVendors) =>
+        currentVendors.map((item) =>
+          item.id === updatedVendor.id ? updatedVendor : item
+        )
+      )
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update vendor status.'
+      )
+    }
+  }
+
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-slate-900 p-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Vendor Management</h1>
-          <p className="text-slate-400">Manage and track all suppliers and vendors</p>
+          <h1 className="mb-2 text-3xl font-bold text-white">
+            Vendor Management
+          </h1>
+          <p className="text-slate-400">
+            Manage supplier profiles, GST details, categories, and status.
+          </p>
         </div>
         <Button
           onClick={handleAddVendor}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="w-fit bg-blue-600 text-white hover:bg-blue-700"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="mr-2 size-4" />
           Add Vendor
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-slate-300 font-medium">Total Vendors</h3>
-            <Building2 className="w-5 h-5 text-blue-500" />
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+        <StatCard
+          title="Total Vendors"
+          value={stats.total}
+          icon={<Building2 className="size-5 text-blue-500" />}
+        />
+        <StatCard
+          title="Active Vendors"
+          value={stats.active}
+          icon={<Building2 className="size-5 text-green-500" />}
+        />
+        <StatCard
+          title="Pending"
+          value={stats.pending}
+          icon={<Star className="size-5 text-yellow-500" />}
+        />
+        <StatCard
+          title="Blocked"
+          value={stats.blocked}
+          icon={<ShieldBan className="size-5 text-red-500" />}
+          helper={`Avg rating: ${stats.averageRating}`}
+        />
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-700 bg-slate-800 p-5">
+        <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-500" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by name, GST number, category, contact..."
+              className="border-slate-600 bg-slate-700 pl-9 text-white placeholder:text-slate-500"
+            />
           </div>
-          <p className="text-3xl font-bold text-white">{vendors.length}</p>
+          <Button
+            onClick={loadVendors}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            Refresh
+          </Button>
         </div>
 
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-slate-300 font-medium">Active Vendors</h3>
-            <Building2 className="w-5 h-5 text-green-500" />
-          </div>
-          <p className="text-3xl font-bold text-white">
-            {vendors.filter((v) => v.status === 'active').length}
-          </p>
-        </div>
-
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-slate-300 font-medium">Avg Rating</h3>
-            <Star className="w-5 h-5 text-yellow-500" />
-          </div>
-          <p className="text-3xl font-bold text-white">
-            {(vendors.reduce((sum, v) => sum + v.rating, 0) / vendors.length).toFixed(1)}
-          </p>
+        <div className="flex flex-wrap gap-2">
+          {vendorStatuses.map((status) => (
+            <button
+              key={status.value}
+              onClick={() => setStatusFilter(status.value)}
+              className={
+                statusFilter === status.value
+                  ? 'rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white'
+                  : 'rounded-full border border-slate-600 bg-slate-700 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-600'
+              }
+            >
+              {status.label} ({getStatusCount(status.value)})
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-        <VendorTable vendors={vendors} onEdit={handleEditVendor} />
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+        <VendorTable
+          vendors={filteredVendors}
+          isLoading={isLoading}
+          onEdit={handleEditVendor}
+          onStatusChange={handleStatusChange}
+        />
       </div>
 
-      {/* Modal */}
       <VendorModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         vendorId={selectedVendor}
       />
+    </div>
+  )
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+  helper,
+}: {
+  title: string
+  value: number | string
+  icon: React.ReactNode
+  helper?: string
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-medium text-slate-300">{title}</h3>
+        {icon}
+      </div>
+      <p className="text-3xl font-bold text-white">{value}</p>
+      {helper && <p className="mt-2 text-xs text-slate-500">{helper}</p>}
     </div>
   )
 }

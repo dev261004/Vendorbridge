@@ -1,6 +1,10 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
+import Link from 'next/link'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { AlertCircle, Loader2, LockKeyhole, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -11,40 +15,82 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createClient } from '@/lib/supabase/client'
+import { normalizeEmail } from '@/lib/auth/validation'
+import {
+  AppRole,
+  canAccessDashboardRoute,
+  getDefaultDashboardRoute,
+  isAppRole,
+} from '@/lib/auth/roles'
 import { PasswordInput } from '@/components/ui/password-input'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { formatEmail } from '@/lib/formUtils'
 import { KeyRound } from 'lucide-react'
 
-export default function Page() {
+export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [nextPath, setNextPath] = useState('/dashboard')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const supabase = createClient()
-    setIsLoading(true)
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get('next')
+    if (next?.startsWith('/')) {
+      setNextPath(next)
+    }
+  }, [])
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     setError(null)
 
+    const formattedEmail = formatEmail(email)
+
+    if (!formattedEmail || !password) {
+      setError('Enter both email and password.')
+      return
+    }
+
+    setIsLoading(true)
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: formatEmail(email),
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formattedEmail,
         password,
-        options: {
-          emailRedirectTo:
-            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
-            `${window.location.origin}/auth/callback`,
-        },
       })
-      if (error) throw error
-      router.push('/protected')
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+
+      if (error) {
+        throw error
+      }
+
+      const userId = data.user?.id
+      let resolvedRole: AppRole = 'procurement_officer'
+
+      if (userId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+
+        resolvedRole = isAppRole(profile?.role)
+          ? profile.role
+          : 'procurement_officer'
+      }
+
+      const defaultRoute = getDefaultDashboardRoute(resolvedRole)
+      const targetRoute =
+        nextPath !== '/dashboard' && canAccessDashboardRoute(nextPath, resolvedRole)
+          ? nextPath
+          : defaultRoute
+
+      router.replace(targetRoute)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in.')
     } finally {
       setIsLoading(false)
     }

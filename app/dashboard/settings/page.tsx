@@ -1,12 +1,54 @@
 'use client'
 
-import { useAppStore } from '@/lib/store'
+import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { User, Lock, Bell, Palette, AlertCircle } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { AppRole, isAppRole, roleLabels } from '@/lib/auth/roles'
+
+interface AccountProfile {
+  email: string
+  firstName: string
+  lastName: string
+  role: AppRole
+}
 
 export default function SettingsPage() {
-  const { currentUser } = useAppStore()
+  const [accountProfile, setAccountProfile] = useState<AccountProfile | null>(null)
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      setAccountProfile({
+        email: user.email || '',
+        firstName: profile?.first_name || '',
+        lastName: profile?.last_name || '',
+        role: isAppRole(profile?.role) ? profile.role : 'procurement_officer',
+      })
+    }
+
+    loadProfile()
+  }, [])
+
+  const displayName =
+    [accountProfile?.firstName, accountProfile?.lastName]
+      .filter(Boolean)
+      .join(' ') || 'Not set'
 
   return (
     <div className="p-8 bg-slate-900 min-h-screen">
@@ -29,7 +71,7 @@ export default function SettingsPage() {
                 Name
               </label>
               <div className="px-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600">
-                {currentUser?.name}
+                {displayName}
               </div>
             </div>
             <div>
@@ -37,7 +79,7 @@ export default function SettingsPage() {
                 Email
               </label>
               <div className="px-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600">
-                {currentUser?.email}
+                {accountProfile?.email || 'Loading...'}
               </div>
             </div>
             <div>
@@ -45,7 +87,7 @@ export default function SettingsPage() {
                 Role
               </label>
               <div className="px-4 py-2 bg-slate-700 rounded-lg text-white border border-slate-600 capitalize">
-                {currentUser?.role.replace('_', ' ')}
+                {accountProfile ? roleLabels[accountProfile.role] : 'Loading...'}
               </div>
             </div>
             <div className="pt-4">

@@ -1,10 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import DashboardNavigation from '@/components/DashboardNavigation'
 import { Loader } from 'lucide-react'
+import {
+  AppRole,
+  canAccessDashboardRoute,
+  isAppRole,
+} from '@/lib/auth/roles'
 
 export default function DashboardLayout({
   children,
@@ -12,8 +17,10 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [role, setRole] = useState<AppRole>('procurement_officer')
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -23,15 +30,34 @@ export default function DashboardLayout({
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push('/auth/login')
-      } else {
-        setIsAuthenticated(true)
+        router.replace(`/auth/login?next=${encodeURIComponent(pathname)}`)
+        setIsLoading(false)
+        return
       }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const resolvedRole = isAppRole(profile?.role)
+        ? profile.role
+        : 'procurement_officer'
+
+      if (!canAccessDashboardRoute(pathname, resolvedRole)) {
+        router.replace('/dashboard')
+        setIsLoading(false)
+        return
+      }
+
+      setRole(resolvedRole)
+      setIsAuthenticated(true)
       setIsLoading(false)
     }
 
     checkAuth()
-  }, [router])
+  }, [pathname, router])
 
   if (isLoading) {
     return (
@@ -47,7 +73,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-background dark:bg-slate-900">
-      <DashboardNavigation />
+      <DashboardNavigation initialRole={role} />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
   )

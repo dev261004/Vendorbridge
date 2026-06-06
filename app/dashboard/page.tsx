@@ -2,10 +2,39 @@
 
 import { useAppStore } from '@/lib/store'
 import { Users, FileText, Package, Receipt, TrendingUp, Clock } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardPage() {
-  const { currentUser, vendors, rfqs, quotations, pos, invoices } = useAppStore()
+  const { vendors, rfqs, quotations, pos, invoices } = useAppStore()
+  const [displayName, setDisplayName] = useState('there')
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const fullName = [profile?.first_name, profile?.last_name]
+        .filter(Boolean)
+        .join(' ')
+
+      setDisplayName(fullName || user.email || 'there')
+    }
+
+    loadProfile()
+  }, [])
 
   const stats = useMemo(() => {
     const activeVendors = vendors.filter((v) => v.status === 'active').length
@@ -39,7 +68,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">
-          Welcome back, {currentUser?.name}!
+          Welcome back, {displayName}!
         </h1>
         <p className="text-slate-400">
           Here&apos;s your procurement overview

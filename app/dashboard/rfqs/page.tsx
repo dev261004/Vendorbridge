@@ -1,16 +1,82 @@
 'use client'
 
-import { useState } from 'react'
-import { useAppStore } from '@/lib/store'
-import { Plus, Eye, Edit } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import RFQModal from '@/components/RFQModal'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { CalendarDays, Eye, FileText, Pencil, Plus, Search, Users } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import RFQModal from '@/components/RFQModal'
+import { getRFQs, updateRFQStatus } from '@/app/actions/rfqs'
+import { getVendors } from '@/app/actions/vendors'
+import {
+  RFQStatus,
+  RFQStatusFilter,
+  RFQWithDetails,
+  rfqStatusLabels,
+  rfqStatuses,
+} from '@/lib/rfqs'
+import { VendorRecord } from '@/lib/vendors'
 
 export default function RFQsPage() {
-  const { rfqs } = useAppStore()
+  const [rfqs, setRFQs] = useState<RFQWithDetails[]>([])
+  const [vendors, setVendors] = useState<VendorRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedRFQ, setSelectedRFQ] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<RFQStatusFilter>('all')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadRFQData()
+  }, [])
+
+  const loadRFQData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      const [rfqData, vendorData] = await Promise.all([
+        getRFQs(),
+        getVendors({ status: 'active' }),
+      ])
+      setRFQs(rfqData)
+      setVendors(vendorData)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load RFQs.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const filteredRFQs = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+
+    return rfqs.filter((rfq) => {
+      const matchesStatus = statusFilter === 'all' || rfq.status === statusFilter
+      const matchesSearch =
+        !query ||
+        [rfq.title, rfq.category, rfq.rfq_number, rfq.description]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().includes(query))
+
+      return matchesStatus && matchesSearch
+    })
+  }, [rfqs, searchQuery, statusFilter])
+
+  const stats = useMemo(
+    () => ({
+      total: rfqs.length,
+      published: rfqs.filter((rfq) => rfq.status === 'published').length,
+      draft: rfqs.filter((rfq) => rfq.status === 'draft').length,
+      closed: rfqs.filter((rfq) => rfq.status === 'closed').length,
+    }),
+    [rfqs]
+  )
+
+  const getStatusCount = (status: RFQStatusFilter) => {
+    if (status === 'all') return rfqs.length
+    return rfqs.filter((rfq) => rfq.status === status).length
+  }
 
   const handleAddRFQ = () => {
     setSelectedRFQ(null)
@@ -25,130 +91,219 @@ export default function RFQsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedRFQ(null)
+    loadRFQData()
+  }
+
+  const handleStatusChange = async (rfqId: string, status: RFQStatus) => {
+    if (!window.confirm(`Change this RFQ status to ${rfqStatusLabels[status]}?`)) {
+      return
+    }
+
+    try {
+      const updatedRFQ = await updateRFQStatus(rfqId, status)
+      setRFQs((current) =>
+        current.map((rfq) =>
+          rfq.id === updatedRFQ.id ? { ...rfq, ...updatedRFQ } : rfq
+        )
+      )
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : 'Failed to update RFQ status.'
+      )
+    }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'published':
-        return 'bg-green-900/30 text-green-400 border-green-700'
+        return 'border-green-700 bg-green-900/30 text-green-400'
       case 'draft':
-        return 'bg-slate-700/30 text-slate-400 border-slate-600'
+        return 'border-yellow-700 bg-yellow-900/30 text-yellow-400'
       case 'closed':
-        return 'bg-red-900/30 text-red-400 border-red-700'
+        return 'border-red-700 bg-red-900/30 text-red-400'
       case 'cancelled':
-        return 'bg-gray-700/30 text-gray-400 border-gray-600'
+        return 'border-slate-600 bg-slate-700/30 text-slate-400'
       default:
-        return 'bg-slate-700/30 text-slate-400 border-slate-600'
+        return 'border-slate-600 bg-slate-700/30 text-slate-400'
     }
   }
 
   return (
-    <div className="p-8 bg-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-slate-900 p-8">
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Requests for Quotation</h1>
-          <p className="text-slate-400">Create and manage RFQs for procurement</p>
+          <h1 className="mb-2 text-3xl font-bold text-white">
+            Requests for Quotation
+          </h1>
+          <p className="text-slate-400">
+            Create RFQs, manage line items, assign vendors, and send procurement requests.
+          </p>
         </div>
         <Button
           onClick={handleAddRFQ}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="w-fit bg-blue-600 text-white hover:bg-blue-700"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="mr-2 size-4" />
           New RFQ
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <h3 className="text-slate-300 font-medium text-sm mb-2">Total RFQs</h3>
-          <p className="text-3xl font-bold text-white">{rfqs.length}</p>
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
+        <StatCard
+          title="Total RFQs"
+          value={stats.total}
+          icon={<FileText className="size-5 text-blue-500" />}
+        />
+        <StatCard
+          title="Published"
+          value={stats.published}
+          icon={<Users className="size-5 text-green-500" />}
+        />
+        <StatCard
+          title="Drafts"
+          value={stats.draft}
+          icon={<Pencil className="size-5 text-yellow-500" />}
+        />
+        <StatCard
+          title="Closed"
+          value={stats.closed}
+          icon={<CalendarDays className="size-5 text-red-500" />}
+        />
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-700 bg-slate-800 p-5">
+        <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-slate-500" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by RFQ number, title, category..."
+              className="border-slate-600 bg-slate-700 pl-9 text-white placeholder:text-slate-500"
+            />
+          </div>
+          <Button
+            onClick={loadRFQData}
+            className="bg-slate-700 text-white hover:bg-slate-600"
+          >
+            Refresh
+          </Button>
         </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <h3 className="text-slate-300 font-medium text-sm mb-2">Published</h3>
-          <p className="text-3xl font-bold text-green-400">
-            {rfqs.filter((r) => r.status === 'published').length}
-          </p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <h3 className="text-slate-300 font-medium text-sm mb-2">Drafts</h3>
-          <p className="text-3xl font-bold text-yellow-400">
-            {rfqs.filter((r) => r.status === 'draft').length}
-          </p>
-        </div>
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-          <h3 className="text-slate-300 font-medium text-sm mb-2">Closed</h3>
-          <p className="text-3xl font-bold text-red-400">
-            {rfqs.filter((r) => r.status === 'closed').length}
-          </p>
+
+        <div className="flex flex-wrap gap-2">
+          {rfqStatuses.map((status) => (
+            <button
+              key={status.value}
+              onClick={() => setStatusFilter(status.value)}
+              className={
+                statusFilter === status.value
+                  ? 'rounded-full border border-blue-600 bg-blue-600 px-3 py-1 text-xs font-medium text-white'
+                  : 'rounded-full border border-slate-600 bg-slate-700 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-600'
+              }
+            >
+              {status.label} ({getStatusCount(status.value)})
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* RFQ List */}
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-4">
-        {rfqs.length === 0 ? (
-          <div className="bg-slate-800 rounded-lg border border-slate-700 p-8 text-center">
-            <p className="text-slate-400 mb-4">No RFQs found</p>
+        {isLoading ? (
+          <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center text-slate-500">
+            Loading RFQs...
+          </div>
+        ) : filteredRFQs.length === 0 ? (
+          <div className="rounded-lg border border-slate-700 bg-slate-800 p-8 text-center">
+            <p className="mb-4 text-slate-400">No RFQs found</p>
             <Button
               onClick={handleAddRFQ}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 text-white hover:bg-blue-700"
             >
               Create First RFQ
             </Button>
           </div>
         ) : (
-          rfqs.map((rfq) => (
+          filteredRFQs.map((rfq) => (
             <div
               key={rfq.id}
-              className="bg-slate-800 rounded-lg border border-slate-700 p-6 hover:border-slate-600 transition-colors"
+              className="rounded-lg border border-slate-700 bg-slate-800 p-6 transition-colors hover:border-slate-600"
             >
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-white">{rfq.title}</h3>
+                  <div className="mb-2 flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold text-white">
+                      {rfq.title}
+                    </h3>
                     <span
-                      className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(rfq.status)}`}
+                      className={`inline-block rounded-full border px-3 py-1 text-xs font-medium ${getStatusColor(
+                        rfq.status
+                      )}`}
                     >
-                      {rfq.status.toUpperCase()}
+                      {rfqStatusLabels[rfq.status]}
                     </span>
                   </div>
-                  <p className="text-slate-400 text-sm mb-3">{rfq.description}</p>
-                  <div className="flex items-center gap-6 text-sm">
+                  <p className="mb-3 text-sm text-slate-400">
+                    {rfq.description || 'No description added'}
+                  </p>
+                  <div className="flex flex-wrap gap-5 text-sm">
                     <span className="text-slate-300">
-                      <span className="text-slate-500">Number:</span> {rfq.number}
+                      <span className="text-slate-500">Number:</span>{' '}
+                      {rfq.rfq_number}
                     </span>
                     <span className="text-slate-300">
-                      <span className="text-slate-500">Items:</span> {rfq.items.length}
+                      <span className="text-slate-500">Category:</span>{' '}
+                      {rfq.category}
                     </span>
                     <span className="text-slate-300">
-                      <span className="text-slate-500">Budget:</span> $
-                      {rfq.estimatedBudget.toLocaleString()}
+                      <span className="text-slate-500">Items:</span>{' '}
+                      {rfq.rfq_items?.length || 0}
                     </span>
                     <span className="text-slate-300">
-                      <span className="text-slate-500">Due:</span>{' '}
-                      {new Date(rfq.dueDate).toLocaleDateString()}
+                      <span className="text-slate-500">Vendors:</span>{' '}
+                      {rfq.rfq_vendor_invitations?.length || 0}
+                    </span>
+                    <span className="text-slate-300">
+                      <span className="text-slate-500">Deadline:</span>{' '}
+                      {new Date(rfq.deadline).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex flex-wrap items-center gap-2">
                   <Link href={`/dashboard/rfqs/${rfq.id}`}>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                      className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="mr-2 size-4" />
+                      View
                     </Button>
                   </Link>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                    className="text-blue-400 hover:bg-blue-900/20 hover:text-blue-300"
                     onClick={() => handleEditRFQ(rfq.id)}
                   >
-                    <Edit className="w-4 h-4" />
+                    <Pencil className="mr-2 size-4" />
+                    Edit
                   </Button>
+                  {rfq.status !== 'closed' && (
+                    <Button
+                      size="sm"
+                      className="bg-red-600 text-white hover:bg-red-700"
+                      onClick={() => handleStatusChange(rfq.id, 'closed')}
+                    >
+                      Close
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -156,12 +311,32 @@ export default function RFQsPage() {
         )}
       </div>
 
-      {/* Modal */}
       <RFQModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         rfqId={selectedRFQ}
+        vendors={vendors}
       />
+    </div>
+  )
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string
+  value: number | string
+  icon: React.ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-slate-300">{title}</h3>
+        {icon}
+      </div>
+      <p className="text-3xl font-bold text-white">{value}</p>
     </div>
   )
 }

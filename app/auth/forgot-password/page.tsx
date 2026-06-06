@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getResetPasswordCallbackUrl, normalizeEmail } from '@/lib/auth/validation'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -14,7 +15,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/toast'
-import { formatEmail } from '@/lib/formUtils'
 import Link from 'next/link'
 import { ArrowLeft, Send } from 'lucide-react'
 
@@ -29,7 +29,7 @@ function ForgotPasswordForm() {
 
   useEffect(() => {
     if (emailFromLogin) {
-      setEmail(formatEmail(emailFromLogin))
+      setEmail(normalizeEmail(emailFromLogin))
     }
   }, [emailFromLogin])
 
@@ -39,7 +39,7 @@ function ForgotPasswordForm() {
     e.preventDefault()
     setIsSubmitting(true)
 
-    const trimmedEmail = formatEmail(email)
+    const trimmedEmail = normalizeEmail(email)
 
     if (!trimmedEmail) {
       showToast({
@@ -73,7 +73,7 @@ function ForgotPasswordForm() {
 
       const supabase = createClient()
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: getResetPasswordCallbackUrl(),
       })
 
       if (error) {
@@ -152,7 +152,7 @@ function ForgotPasswordForm() {
                       placeholder="m@example.com"
                       required
                       value={email}
-                      onChange={(e) => setEmail(formatEmail(e.target.value))}
+                      onChange={(e) => setEmail(normalizeEmail(e.target.value))}
                     />
                     {isPrefilled && emailFromLogin && (
                       <p className="text-xs text-slate-400">

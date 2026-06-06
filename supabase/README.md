@@ -32,7 +32,7 @@ It creates:
 - Purchase orders and PO items
 - Invoices and invoice items
 - Activity logs and notifications
-- Private Supabase Storage buckets for RFQ attachments and invoice PDFs
+- Private Supabase Storage buckets for profile photos, RFQ attachments, and invoice PDFs
 - RLS policies for internal users and vendors
 
 ## How To Apply
@@ -49,6 +49,37 @@ Alternative:
 1. Open the Supabase dashboard.
 2. Go to SQL Editor.
 3. Paste and run the migration SQL.
+
+## Auth Email Confirmation
+
+The app has a server route at `/auth/confirm` that verifies Supabase email
+tokens with `verifyOtp`. To make confirmation emails open VendorBridge first
+instead of `supabase.co/auth/v1/verify`, update the Supabase signup email
+template:
+
+1. Open Supabase Dashboard.
+2. Go to Authentication > Emails > Confirm signup.
+3. Replace the confirmation link href with:
+
+```html
+{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup
+```
+
+The signup form sets `RedirectTo` to:
+
+```txt
+https://your-app-domain.com/auth/confirm?next=%2Fdashboard
+```
+
+If you hardcode the template instead, use this shape:
+
+```html
+https://your-app-domain.com/auth/confirm?next=%2Fdashboard&token_hash={{ .TokenHash }}&type=signup
+```
+
+Until the template is updated, Supabase's default confirmation URL may still
+redirect back to `/auth/confirm` with a `code`; the route supports that fallback,
+but the first browser hop will still be the Supabase verification endpoint.
 
 ## Next Backend Step
 

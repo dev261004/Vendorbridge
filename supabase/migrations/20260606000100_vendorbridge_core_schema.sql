@@ -9,8 +9,7 @@ begin
     'admin',
     'procurement_officer',
     'manager',
-    'vendor',
-    'finance'
+    'vendor'
   );
 exception when duplicate_object then null;
 end $$;
@@ -446,7 +445,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.current_user_role() in ('admin', 'procurement_officer', 'manager', 'finance')
+  select public.current_user_role() in ('admin', 'procurement_officer', 'manager')
 $$;
 
 create or replace function public.handle_new_user()
@@ -462,7 +461,7 @@ declare
 begin
   requested_role :=
     case
-      when new.raw_user_meta_data->>'role' in ('admin', 'procurement_officer', 'manager', 'vendor', 'finance')
+      when new.raw_user_meta_data->>'role' in ('admin', 'procurement_officer', 'manager', 'vendor')
         then (new.raw_user_meta_data->>'role')::public.app_role
       else 'procurement_officer'::public.app_role
     end;
@@ -941,17 +940,17 @@ create policy "Internal users and own vendors can view invoices"
     or vendor_id = public.current_user_vendor_id()
   );
 
-drop policy if exists "Procurement and finance users can manage invoices" on public.invoices;
-create policy "Procurement and finance users can manage invoices"
+drop policy if exists "Procurement users can manage invoices" on public.invoices;
+create policy "Procurement users can manage invoices"
   on public.invoices for all
   to authenticated
   using (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer', 'finance')
+    and public.current_user_role() in ('admin', 'procurement_officer')
   )
   with check (
     organization_id = public.current_user_organization_id()
-    and public.current_user_role() in ('admin', 'procurement_officer', 'finance')
+    and public.current_user_role() in ('admin', 'procurement_officer')
   );
 
 drop policy if exists "Visible invoice items can be selected" on public.invoice_items;
@@ -960,8 +959,8 @@ create policy "Visible invoice items can be selected"
   to authenticated
   using (exists (select 1 from public.invoices i where i.id = invoice_items.invoice_id));
 
-drop policy if exists "Procurement and finance users can manage invoice items" on public.invoice_items;
-create policy "Procurement and finance users can manage invoice items"
+drop policy if exists "Procurement users can manage invoice items" on public.invoice_items;
+create policy "Procurement users can manage invoice items"
   on public.invoice_items for all
   to authenticated
   using (
@@ -969,7 +968,7 @@ create policy "Procurement and finance users can manage invoice items"
       select 1 from public.invoices i
       where i.id = invoice_items.invoice_id
         and i.organization_id = public.current_user_organization_id()
-        and public.current_user_role() in ('admin', 'procurement_officer', 'finance')
+        and public.current_user_role() in ('admin', 'procurement_officer')
     )
   )
   with check (
@@ -977,7 +976,7 @@ create policy "Procurement and finance users can manage invoice items"
       select 1 from public.invoices i
       where i.id = invoice_items.invoice_id
         and i.organization_id = public.current_user_organization_id()
-        and public.current_user_role() in ('admin', 'procurement_officer', 'finance')
+        and public.current_user_role() in ('admin', 'procurement_officer')
     )
   );
 
@@ -1020,6 +1019,7 @@ create policy "Internal users can create notifications"
 
 insert into storage.buckets (id, name, public)
 values
+  ('profile-avatars', 'profile-avatars', false),
   ('rfq-attachments', 'rfq-attachments', false),
   ('invoice-pdfs', 'invoice-pdfs', false)
 on conflict (id) do nothing;
@@ -1028,17 +1028,17 @@ drop policy if exists "VendorBridge storage files are readable by authenticated 
 create policy "VendorBridge storage files are readable by authenticated users"
   on storage.objects for select
   to authenticated
-  using (bucket_id in ('rfq-attachments', 'invoice-pdfs'));
+  using (bucket_id in ('profile-avatars', 'rfq-attachments', 'invoice-pdfs'));
 
 drop policy if exists "VendorBridge storage files can be uploaded by authenticated users" on storage.objects;
 create policy "VendorBridge storage files can be uploaded by authenticated users"
   on storage.objects for insert
   to authenticated
-  with check (bucket_id in ('rfq-attachments', 'invoice-pdfs'));
+  with check (bucket_id in ('profile-avatars', 'rfq-attachments', 'invoice-pdfs'));
 
 drop policy if exists "VendorBridge storage files can be updated by authenticated users" on storage.objects;
 create policy "VendorBridge storage files can be updated by authenticated users"
   on storage.objects for update
   to authenticated
-  using (bucket_id in ('rfq-attachments', 'invoice-pdfs'))
-  with check (bucket_id in ('rfq-attachments', 'invoice-pdfs'));
+  using (bucket_id in ('profile-avatars', 'rfq-attachments', 'invoice-pdfs'))
+  with check (bucket_id in ('profile-avatars', 'rfq-attachments', 'invoice-pdfs'));

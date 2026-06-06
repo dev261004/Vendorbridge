@@ -1,45 +1,47 @@
-"use client";
+"use client"
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   Camera,
   CheckCircle2,
   Loader2,
   UserPlus,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+} from "lucide-react"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   PasswordInput,
   PasswordCriteria,
-} from "@/components/ui/password-input";
+} from "@/components/ui/password-input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { createClient } from "@/lib/supabase/client";
-import { AppRole, publicSignupRoleOptions } from "@/lib/auth/roles";
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
+import { AppRole, publicSignupRoleOptions } from "@/lib/auth/roles"
 import {
   getAuthConfirmUrl,
   isStrongPassword,
   normalizeEmail,
   passwordRequirements,
-} from "@/lib/auth/validation";
-import { formatName, formatEmail, formatPhone } from "@/lib/formUtils";
+} from "@/lib/auth/validation"
+import { formatName, formatEmail, formatPhone } from "@/lib/formUtils"
+
 
 const COUNTRIES = [
   "India",
@@ -49,7 +51,7 @@ const COUNTRIES = [
   "Singapore",
   "United Arab Emirates",
   "Other",
-];
+]
 
 const COUNTRY_CODES: { label: string; value: string }[] = [
   { label: "🇮🇳 India +91", value: "+91" },
@@ -66,129 +68,138 @@ const COUNTRY_CODES: { label: string; value: string }[] = [
   { label: "🇵🇰 Pakistan +92", value: "+92" },
   { label: "🇸🇬 Singapore +65", value: "+65" },
   { label: "🇲🇾 Malaysia +60", value: "+60" },
-];
+]
+
+const selectClassName =
+  "h-8 w-full rounded-lg border border-input bg-slate-950 px-2.5 text-sm text-white outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+
+const nativeOptionStyle = {
+  backgroundColor: "#0f172a",
+  color: "#f8fafc",
+}
 
 export default function Page() {
-  const router = useRouter();
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [role, setRole] = useState<AppRole>("procurement_officer");
-  const [country, setCountry] = useState("India");
-  const [countryCode, setCountryCode] = useState("+91");
-  const [orgInfo, setOrgInfo] = useState("");
-  const [password, setPassword] = useState("");
-  const [repeatPassword, setRepeatPassword] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter()
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [role, setRole] = useState<AppRole>("procurement_officer")
+  const [country, setCountry] = useState("India")
+  const [countryCode, setCountryCode] = useState("+91")
+  const [orgInfo, setOrgInfo] = useState("")
+  const [additionalInfo, setAdditionalInfo] = useState("")
+  const [password, setPassword] = useState("")
+  const [repeatPassword, setRepeatPassword] = useState("")
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   const selectedRole = useMemo(
     () => publicSignupRoleOptions.find((option) => option.value === role),
     [role],
-  );
+  )
 
   const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null;
-    setPhotoFile(file);
+    const file = event.target.files?.[0] || null
+    setPhotoFile(file)
 
     if (!file) {
-      setPhotoPreview(null);
-      return;
+      setPhotoPreview(null)
+      return
     }
 
     if (!file.type.startsWith("image/")) {
-      setError("Upload an image file for the profile photo.");
-      event.target.value = "";
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      return;
+      setError("Upload an image file for the profile photo.")
+      event.target.value = ""
+      setPhotoFile(null)
+      setPhotoPreview(null)
+      return
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      setError("Profile photo must be smaller than 2MB.");
-      event.target.value = "";
-      setPhotoFile(null);
-      setPhotoPreview(null);
-      return;
+      setError("Profile photo must be smaller than 2MB.")
+      event.target.value = ""
+      setPhotoFile(null)
+      setPhotoPreview(null)
+      return
     }
 
-    setError(null);
-    setPhotoPreview(URL.createObjectURL(file));
-  };
+    setError(null)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
 
   const uploadProfilePhoto = async (userId: string, file: File) => {
-    const supabase = createClient();
-    const extension = file.name.split(".").pop() || "jpg";
-    const storagePath = `${userId}/avatar.${extension}`;
+    const supabase = createClient()
+    const extension = file.name.split(".").pop() || "jpg"
+    const storagePath = `${userId}/avatar.${extension}`
 
     const { error: uploadError } = await supabase.storage
       .from("profile-avatars")
       .upload(storagePath, file, {
         cacheControl: "3600",
         upsert: true,
-      });
+      })
 
     if (uploadError) {
       setNotice(
         "Account created, but the profile photo could not be uploaded.",
-      );
-      return;
+      )
+      return
     }
 
     await supabase.auth.updateUser({
       data: { avatar_url: storagePath },
-    });
+    })
 
     await supabase
       .from("profiles")
       .update({ avatar_url: storagePath })
-      .eq("id", userId);
-  };
+      .eq("id", userId)
+  }
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setNotice(null);
+    event.preventDefault()
+    setError(null)
+    setNotice(null)
 
-    const normalizedEmail = normalizeEmail(email);
+    const normalizedEmail = normalizeEmail(email)
 
     if (!firstName.trim() || !lastName.trim()) {
-      setError("Enter first name and last name.");
-      return;
+      setError("Enter first name and last name.")
+      return
     }
 
     if (!normalizedEmail) {
-      setError("Enter a valid email address.");
-      return;
+      setError("Enter a valid email address.")
+      return
     }
 
-    const digitsOnly = phone.replace(/[^0-9]/g, "");
+    const digitsOnly = phone.replace(/[^0-9]/g, "")
     if (!digitsOnly) {
-      setError("Enter a phone number.");
-      return;
+      setError("Enter a phone number.")
+      return
     } else if (digitsOnly.length !== 10) {
-      setError("Phone number must be exactly 10 digits.");
-      return;
+      setError("Phone number must be exactly 10 digits.")
+      return
     }
 
     if (!isStrongPassword(password)) {
-      setError(passwordRequirements);
-      return;
+      setError(passwordRequirements)
+      return
     }
 
     if (password !== repeatPassword) {
-      setError("Passwords do not match.");
-      return;
+      setError("Passwords do not match.")
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
 
     try {
-      const supabase = createClient();
+      const supabase = createClient()
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -204,23 +215,23 @@ export default function Page() {
             phone_prefix: countryCode,
           },
         },
-      });
+      })
 
-      if (error) throw error;
+      if (error) throw error
 
       if (photoFile && data.user && data.session) {
-        await uploadProfilePhoto(data.user.id, photoFile);
+        await uploadProfilePhoto(data.user.id, photoFile)
       }
 
-      router.push("/auth/sign-up-success");
+      router.push("/auth/sign-up-success")
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Unable to create account.",
-      );
+      )
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
     <main className="min-h-svh bg-background px-4 py-8">
@@ -241,8 +252,10 @@ export default function Page() {
             <div className="flex flex-col items-center gap-3">
               <label
                 htmlFor="photo"
-                className="flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-border bg-muted text-muted-foreground transition-colors hover:text-foreground">
+                className="flex size-24 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-border bg-muted text-muted-foreground transition-colors hover:text-foreground"
+              >
                 {photoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={photoPreview}
                     alt="Profile preview"
@@ -340,12 +353,14 @@ export default function Page() {
                   id="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value as AppRole)}
-                  className="h-8 w-full rounded-lg border border-input bg-slate-950 px-2.5 text-sm text-white outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                  className={selectClassName}
+                >
                   {publicSignupRoleOptions.map((option) => (
                     <option
                       key={option.value}
                       value={option.value}
-                      style={{ backgroundColor: "#0f172a", color: "#f8fafc" }}>
+                      style={nativeOptionStyle}
+                    >
                       {option.label}
                     </option>
                   ))}
@@ -362,13 +377,15 @@ export default function Page() {
                   id="country"
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
-                  className="h-8 w-full rounded-lg border border-input bg-slate-950 px-2.5 text-sm text-white outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
-                  {COUNTRIES.map((c) => (
+                  className={selectClassName}
+                >
+                  {COUNTRIES.map((countryOption) => (
                     <option
-                      key={c}
-                      value={c}
-                      style={{ backgroundColor: "#0f172a", color: "#f8fafc" }}>
-                      {c}
+                      key={countryOption}
+                      value={countryOption}
+                      style={nativeOptionStyle}
+                    >
+                      {countryOption}
                     </option>
                   ))}
                 </select>
@@ -376,14 +393,23 @@ export default function Page() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="org-info">
-                Organization name &amp; description
-              </Label>
+              <Label htmlFor="organization">Organization name</Label>
               <Input
-                id="org-info"
+                id="organization"
                 value={orgInfo}
                 onChange={(e) => setOrgInfo(e.target.value)}
-                placeholder="Your company or procurement organization — department, vendor, approval level, or other onboarding details"
+                placeholder="Your company or procurement organization"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="additional-info">Additional information</Label>
+              <Textarea
+                id="additional-info"
+                value={additionalInfo}
+                onChange={(event) => setAdditionalInfo(event.target.value)}
+                placeholder="Department, vendor company, approval level, or other onboarding details"
+                rows={4}
               />
             </div>
 
@@ -436,7 +462,8 @@ export default function Page() {
                 className={buttonVariants({
                   variant: "outline",
                   className: "flex-1",
-                })}>
+                })}
+              >
                 Back to login
               </Link>
             </div>
@@ -444,5 +471,5 @@ export default function Page() {
         </CardContent>
       </Card>
     </main>
-  );
+  )
 }
