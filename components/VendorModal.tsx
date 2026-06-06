@@ -18,18 +18,35 @@ import { VendorFormValues, VendorStatus } from '@/lib/vendors'
 
 const vendorSchema = z.object({
   name: z.string().min(2, 'Vendor name must be at least 2 characters'),
-  category: z.string().min(2, 'Category is required'),
+  category: z
+    .string()
+    .min(2, 'Category is required')
+    .regex(/^[a-zA-Z\s]+$/, 'Special characters and numbers not allowed'),
   gst_number: z.string(),
-  contact_person: z.string().min(2, 'Contact person is required'),
+  contact_person: z
+    .string()
+    .min(2, 'Contact person is required')
+    .regex(/^[a-zA-Z\s.]+$/, 'Numbers and special characters not allowed'),
   email: z
     .string()
+    .trim()
+    .toLowerCase()
     .refine((value) => !value || z.string().email().safeParse(value).success, {
       message: 'Invalid email',
     }),
-  phone: z.string().min(5, 'Contact number is required'),
+  phone: z
+    .string()
+    .min(10, 'Contact number must be 10 digits')
+    .regex(/^\d{10}$/, 'Only numbers allowed'),
   address: z.string().min(5, 'Address is required'),
-  city: z.string().min(2, 'City is required'),
-  state: z.string(),
+  city: z
+    .string()
+    .min(2, 'City is required')
+    .regex(/^[a-zA-Z\s]+$/, 'Numbers and special characters not allowed'),
+  state: z
+    .string()
+    .min(2, 'State is required')
+    .regex(/^[a-zA-Z\s]+$/, 'Numbers and special characters not allowed'),
   country: z.string().min(2, 'Country is required'),
   rating: z.number().min(0).max(5),
   status: z.enum(['pending', 'active', 'blocked', 'inactive']),
@@ -207,6 +224,10 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
                   type="email"
                   placeholder="vendor@example.com"
                   className="border-slate-600 bg-slate-700 text-white"
+                  onChange={(event) => {
+                    event.target.value = event.target.value.trim().toLowerCase()
+                    register('email').onChange(event)
+                  }}
                 />
               </Field>
 
@@ -215,6 +236,10 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
                   {...register('phone')}
                   placeholder="+91 98765 43210"
                   className="border-slate-600 bg-slate-700 text-white"
+                  onChange={(event) => {
+                    event.target.value = event.target.value.replace(/[^0-9]/g, '')
+                    register('phone').onChange(event)
+                  }}
                 />
               </Field>
 
