@@ -1,18 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createVendor, updateVendor as updateVendorAction } from '@/app/actions/vendors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatName, formatEmail, formatPhone } from '@/lib/formUtils'
 
 const vendorSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email'),
-  phone: z.string().min(5, 'Phone number is required'),
+  phone: z.string().min(10, 'Phone number must be 10 digits').max(10, 'Phone number must be 10 digits'),
   address: z.string().min(5, 'Address is required'),
   city: z.string().min(2, 'City is required'),
   country: z.string().min(2, 'Country is required'),
@@ -34,6 +35,7 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
     reset,
     handleSubmit,
     formState: { errors },
+    control,
   } = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
     defaultValues: {
@@ -55,10 +57,18 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
   const onSubmit = async (data: VendorFormData) => {
     try {
       setIsLoading(true)
+      const formattedData = {
+        name: formatName(data.name),
+        email: formatEmail(data.email),
+        phone: formatPhone(data.phone),
+        address: data.address,
+        city: data.city,
+        country: data.country,
+      }
       if (vendorId) {
-        await updateVendorAction(vendorId, data)
+        await updateVendorAction(vendorId, formattedData)
       } else {
-        await createVendor(data)
+        await createVendor(formattedData)
       }
       reset()
       onClose()
@@ -72,7 +82,7 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-2xl">
+      <DialogContent className="bg-slate-800 border border-slate-700 text-white max-w-2xl">
         <DialogHeader>
           <DialogTitle>{vendorId ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
         </DialogHeader>
@@ -83,10 +93,18 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Name
               </label>
-              <Input
-                {...register('name')}
-                placeholder="Vendor Name"
-                className="bg-slate-700 border-slate-600 text-white"
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    placeholder="Vendor Name"
+                    className="bg-slate-700 border-slate-600 text-white"
+                    value={formatName(field.value)}
+                    onChange={(e) => field.onChange(formatName(e.target.value))}
+                  />
+                )}
               />
               {errors.name && (
                 <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
@@ -97,11 +115,19 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Email
               </label>
-              <Input
-                {...register('email')}
-                type="email"
-                placeholder="vendor@example.com"
-                className="bg-slate-700 border-slate-600 text-white"
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    type="email"
+                    placeholder="vendor@example.com"
+                    className="bg-slate-700 border-slate-600 text-white"
+                    value={formatEmail(field.value)}
+                    onChange={(e) => field.onChange(formatEmail(e.target.value))}
+                  />
+                )}
               />
               {errors.email && (
                 <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
@@ -114,10 +140,18 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Phone
               </label>
-              <Input
-                {...register('phone')}
-                placeholder="Phone Number"
-                className="bg-slate-700 border-slate-600 text-white"
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    placeholder="9876543210"
+                    className="bg-slate-700 border-slate-600 text-white"
+                    value={formatPhone(field.value)}
+                    onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                  />
+                )}
               />
               {errors.phone && (
                 <p className="text-red-500 text-sm mt-1">{errors.phone.message}</p>

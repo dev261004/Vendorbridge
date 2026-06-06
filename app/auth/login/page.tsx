@@ -11,9 +11,12 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { formatEmail } from '@/lib/formUtils'
+import { KeyRound } from 'lucide-react'
 
 export default function Page() {
   const [email, setEmail] = useState('')
@@ -30,7 +33,7 @@ export default function Page() {
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: formatEmail(email),
         password,
         options: {
           emailRedirectTo:
@@ -46,6 +49,16 @@ export default function Page() {
       setIsLoading(false)
     }
   }
+
+  const handleForgotPassword = () => {
+    if (email.trim()) {
+      sessionStorage.setItem('forgotPasswordEmail', formatEmail(email))
+    }
+  }
+
+  const forgotPasswordHref = email.trim()
+    ? `/auth/forgot-password?email=${encodeURIComponent(formatEmail(email))}`
+    : '/auth/forgot-password'
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
@@ -69,17 +82,25 @@ export default function Page() {
                       placeholder="m@example.com"
                       required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => setEmail(formatEmail(e.target.value))}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <Link
+                        href={forgotPasswordHref}
+                        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                      >
+                        <KeyRound className="h-3 w-3" />
+                        Forgot Password?
+                      </Link>
+                    </div>
+                    <PasswordInput
                       id="password"
-                      type="password"
-                      required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      required
                     />
                   </div>
                   {error && <p className="text-sm text-red-500">{error}</p>}
