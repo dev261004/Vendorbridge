@@ -23,6 +23,14 @@ export function getAuthCallbackUrl(next = '/dashboard') {
   return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
 }
 
+export function getAuthConfirmUrl(next = '/dashboard') {
+  if (typeof window === 'undefined') {
+    return `/auth/confirm?next=${encodeURIComponent(next)}`
+  }
+
+  return `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`
+}
+
 export function getResetPasswordCallbackUrl() {
   if (typeof window === 'undefined') {
     return '/auth/callback?next=/auth/reset-password'

@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createClient } from '@/lib/supabase/client'
 import { AppRole, publicSignupRoleOptions } from '@/lib/auth/roles'
 import {
-  getAuthCallbackUrl,
+  getAuthConfirmUrl,
   isStrongPassword,
   normalizeEmail,
   passwordRequirements,
@@ -171,7 +171,7 @@ export default function SignUpPage() {
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: getAuthCallbackUrl('/dashboard'),
+          emailRedirectTo: getAuthConfirmUrl('/dashboard'),
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
