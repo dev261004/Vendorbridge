@@ -238,6 +238,21 @@ async function replaceQuotationItems(
   if (error) {
     throw error
   }
+
+  revalidateTag('quotations', { expire: 0 })
+  return data[0]
+}
+
+export async function updateQuotation(
+  id: string,
+  quotationData: Partial<{
+    status: string
+    total_amount: number
+    valid_until: string
+    notes: string
+  }>
+) {
+  const supabase = await createClient()
 }
 
 async function saveQuotation(
@@ -319,228 +334,44 @@ async function saveQuotation(
     throw error
   }
 
-  await replaceQuotationItems(quotation.id, values)
-
-  if (effectiveStatus === 'submitted') {
-    await supabase
-      .from('rfq_vendor_invitations')
-      .update({
-        status: 'quoted',
-        responded_at: new Date().toISOString(),
-      })
-      .eq('rfq_id', values.rfq_id)
-      .eq('vendor_id', profile.vendor_id)
-  } else {
-    await supabase
-      .from('rfq_vendor_invitations')
-      .update({
-        status: 'viewed',
-        viewed_at: new Date().toISOString(),
-      })
-      .eq('rfq_id', values.rfq_id)
-      .eq('vendor_id', profile.vendor_id)
-  }
-
-  await logQuotationActivity({
-    organizationId: profile.organization_id,
-    actorId: user.id,
-    quotationId: quotation.id,
-    action:
-      effectiveStatus === 'submitted'
-        ? 'quotation.submitted'
-        : 'quotation.draft_saved',
-    message:
-      effectiveStatus === 'submitted'
-        ? `${quotation.quotation_number} was submitted for ${rfq.rfq_number}.`
-        : `${quotation.quotation_number} was saved as draft for ${rfq.rfq_number}.`,
-    metadata: {
-      rfq_id: values.rfq_id,
-      rfq_number: rfq.rfq_number,
-      subtotal: totals.subtotal,
-      total_amount: totals.totalAmount,
-      item_count: values.items.length,
-    },
-  })
-
-  revalidatePath('/dashboard/quotations')
-  revalidatePath(`/dashboard/quotations/${quotation.id}`)
-  return quotation
+  revalidateTag('quotations')
+  return data[0]
 }
 
-export async function saveQuotationDraft(values: QuotationFormValues) {
-  return saveQuotation(values, 'draft')
-}
+export async function addQuotationItem(quotationId: string, item: {
+  item_name: string
+  quantity: number
+  unit_price: number
+  total_price: number
+}) {
+  const supabase = await createClient()
 
-export async function submitQuotation(values: QuotationFormValues) {
-  return saveQuotation(values, 'submitted')
-}
-
-export async function getVendorQuotationOpportunities() {
-  const { supabase, profile } = await getAuthenticatedProfile()
-
-  if (!canSubmitQuotations(profile.role)) {
-    return []
-  }
-
-  if (!profile.vendor_id) {
-    throw new Error('Your vendor account is not linked to a vendor profile.')
-  }
-
-  const { data: invitations, error: invitationsError } = await supabase
-    .from('rfq_vendor_invitations')
-    .select(
-      `
-        id,
-        status,
-        invited_at,
-        rfq_id,
-        rfqs(
-          id,
-          organization_id,
-          rfq_number,
-          title,
-          category,
-          description,
-          deadline,
-          status,
-          rfq_items(*),
-          rfq_attachments(*)
-        )
-      `
-    )
-    .eq('vendor_id', profile.vendor_id)
-    .eq('organization_id', profile.organization_id)
-    .order('invited_at', { ascending: false })
-
-  if (invitationsError) {
-    throw invitationsError
-  }
-
-  const { data: quotations, error: quotationsError } = await supabase
-    .from('quotations')
-    .select('*, quotation_items(*)')
-    .eq('vendor_id', profile.vendor_id)
-    .eq('organization_id', profile.organization_id)
-    .returns<QuotationWithDetails[]>()
-
-  if (quotationsError) {
-    throw quotationsError
-  }
-
-  const quotationsByRFQ = new Map(
-    (quotations || []).map((quotation) => [
-      quotation.rfq_id,
+  const { data, error } = await supabase
+    .from('quotation_items')
+    .insert([
       {
-        ...quotation,
-        quotation_items: (quotation.quotation_items || []).sort(
-          (a, b) => a.created_at.localeCompare(b.created_at)
-        ),
+        quotation_id: quotationId,
+        ...item,
       },
     ])
-  )
-
-  return (invitations || [])
-    .filter((invitation) => Boolean(invitation.rfqs))
-    .map((invitation) => {
-      const rfq = Array.isArray(invitation.rfqs)
-        ? invitation.rfqs[0]
-        : invitation.rfqs
-
-      return {
-        invitation_id: invitation.id,
-        invitation_status: invitation.status,
-        invited_at: invitation.invited_at,
-        rfq: {
-          ...rfq,
-          rfq_items: (rfq.rfq_items || []).sort(
-            (a, b) => a.sort_order - b.sort_order
-          ),
-          rfq_attachments: rfq.rfq_attachments || [],
-        },
-        quotation: quotationsByRFQ.get(invitation.rfq_id) || null,
-      }
-    }) as VendorQuotationOpportunity[]
-}
-
-export async function getQuotations() {
-  const { supabase, profile } = await getAuthenticatedProfile()
-
-  if (canCompareQuotations(profile.role)) {
-    const { data, error } = await supabase
-      .from('quotations')
-      .select(
-        `
-          *,
-          quotation_items(*),
-          rfqs(id, rfq_number, title, category, description, deadline, status),
-          vendors(id, name, category, email, status, rating)
-        `
-      )
-      .eq('organization_id', profile.organization_id)
-      .order('created_at', { ascending: false })
-      .returns<QuotationWithDetails[]>()
+    .select()
 
     if (error) {
       throw error
     }
 
-    return (data || []).map((quotation) => ({
-      ...quotation,
-      quotation_items: (quotation.quotation_items || []).sort(
-        (a, b) => a.created_at.localeCompare(b.created_at)
-      ),
-    }))
-  }
-
-  if (canSubmitQuotations(profile.role) && profile.vendor_id) {
-    const { data, error } = await supabase
-      .from('quotations')
-      .select(
-        `
-          *,
-          quotation_items(*),
-          rfqs(id, rfq_number, title, category, description, deadline, status),
-          vendors(id, name, category, email, status, rating)
-        `
-      )
-      .eq('vendor_id', profile.vendor_id)
-      .eq('organization_id', profile.organization_id)
-      .order('created_at', { ascending: false })
-      .returns<QuotationWithDetails[]>()
-
-    if (error) {
-      throw error
-    }
-
-    return data || []
-  }
-
-  return []
+  revalidateTag('quotations')
+  return data[0]
 }
 
-export async function getQuotationById(id: string) {
-  const { supabase, profile } = await getAuthenticatedProfile()
+export async function getQuotationItems(quotationId: string) {
+  const supabase = await createClient()
 
-  let request = supabase
-    .from('quotations')
-    .select(
-      `
-        *,
-        quotation_items(*),
-        rfqs(id, rfq_number, title, category, description, deadline, status),
-        vendors(id, name, category, email, status, rating)
-      `
-    )
-    .eq('id', id)
-    .eq('organization_id', profile.organization_id)
-
-  if (canSubmitQuotations(profile.role)) {
-    request = request.eq('vendor_id', profile.vendor_id)
-  } else if (!canCompareQuotations(profile.role)) {
-    throw new Error('You do not have permission to view quotations.')
-  }
-
-  const { data, error } = await request.maybeSingle<QuotationWithDetails>()
+  const { data, error } = await supabase
+    .from('quotation_items')
+    .select('*')
+    .eq('quotation_id', quotationId)
+    .order('created_at', { ascending: true })
 
   if (error) {
     throw error

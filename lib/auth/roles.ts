@@ -91,7 +91,7 @@ export function isAppRole(value: unknown): value is AppRole {
 
 export function canAccessDashboardRoute(pathname: string, role: AppRole) {
   const matchingRoute = dashboardRouteRoles
-    .filter((route) => pathname === route.href || pathname.startsWith(`${route.href}/`))
+    .filter((route) => pathname === route.href || pathname.startsWith(route.href + '/'))
     .sort((a, b) => b.href.length - a.href.length)[0]
 
   if (!matchingRoute) {

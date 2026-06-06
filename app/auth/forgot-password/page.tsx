@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { getResetPasswordCallbackUrl, normalizeEmail } from '@/lib/auth/validation'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -13,111 +14,217 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
-import {
-  getResetPasswordCallbackUrl,
-  normalizeEmail,
-} from '@/lib/auth/validation'
+import { useToast } from '@/components/ui/toast'
+import Link from 'next/link'
+import { ArrowLeft, Send } from 'lucide-react'
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
+  const searchParams = useSearchParams()
+  const emailFromLogin = searchParams.get('email') || ''
+  const { showToast } = useToast()
   const [email, setEmail] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isChecking, setIsChecking] = useState(false)
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError(null)
-    setSuccess(null)
+  useEffect(() => {
+    if (emailFromLogin) {
+      setEmail(normalizeEmail(emailFromLogin))
+    }
+  }, [emailFromLogin])
 
-    const normalizedEmail = normalizeEmail(email)
+  const isPrefilled = !!emailFromLogin
 
-    if (!normalizedEmail) {
-      setError('Enter your account email address.')
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    const trimmedEmail = normalizeEmail(email)
+
+    if (!trimmedEmail) {
+      showToast({
+        title: 'Email required',
+        description: 'Please enter your email address.',
+        variant: 'destructive',
+      })
+      setIsSubmitting(false)
       return
     }
 
-    setIsLoading(true)
-
+    setIsChecking(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        normalizedEmail,
-        {
-          redirectTo: getResetPasswordCallbackUrl(),
-        }
-      )
+      const res = await fetch('/api/check-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+      const data = await res.json()
 
-      if (error) {
-        throw error
+      if (!data.exists) {
+        showToast({
+          title: 'User not found',
+          description: 'No account found with this email. Please sign up first.',
+          variant: 'destructive',
+        })
+        setIsSubmitting(false)
+        setIsChecking(false)
+        return
       }
 
-      setSuccess('Password reset instructions were sent to your email.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to send reset email.')
+      const supabase = createClient()
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: getResetPasswordCallbackUrl(),
+      })
+
+      if (error) {
+        showToast({
+          title: 'Error',
+          description: error.message,
+          variant: 'destructive',
+        })
+      } else {
+        setIsSubmitted(true)
+        showToast({
+          title: 'Email sent!',
+          description: 'Check your inbox for password reset instructions.',
+          variant: 'success',
+        })
+      }
+    } catch {
+      showToast({
+        title: 'Error',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
+      setIsChecking(false)
     }
   }
 
+  if (isSubmitted) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-sm">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">Check your email</CardTitle>
+              <CardDescription>
+                We&apos;ve sent a password reset link to your email address.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center gap-2 text-sm text-blue-400 hover:underline"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to login
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10">
-      <Card className="w-full max-w-md border-border/70">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Reset your password</CardTitle>
-          <CardDescription>
-            We will send a secure reset link to your registered email.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-2.5 top-2 size-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  className="pl-8"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                />
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">Forgot password?</CardTitle>
+              <CardDescription>
+                {isPrefilled
+                  ? 'Confirm your email to receive a reset link'
+                  : 'Enter your email to receive a reset link'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit}>
+                <div className="flex flex-col gap-6">
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="m@example.com"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(normalizeEmail(e.target.value))}
+                    />
+                    {isPrefilled && emailFromLogin && (
+                      <p className="text-xs text-slate-400">
+                        Prefilled from your login email — you can edit it if needed
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isSubmitting || isChecking}
+                  >
+                    {isChecking ? (
+                      'Checking...'
+                    ) : isSubmitting ? (
+                      'Sending...'
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send reset link
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="mt-4 text-center text-sm">
+                  <Link
+                    href="/auth/login"
+                    className="inline-flex items-center gap-1 text-blue-400 hover:underline"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    Back to login
+                  </Link>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ForgotPasswordSkeleton() {
+  return (
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <div className="h-8 w-48 bg-slate-700 rounded animate-pulse" />
+              <div className="h-4 w-64 bg-slate-700 rounded animate-pulse mt-2" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-6">
+                <div className="grid gap-2">
+                  <div className="h-4 w-12 bg-slate-700 rounded animate-pulse" />
+                  <div className="h-8 bg-slate-700 rounded animate-pulse" />
+                </div>
+                <div className="h-8 bg-slate-700 rounded animate-pulse" />
               </div>
-            </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-            {success && (
-              <div className="flex gap-2 rounded-lg border border-green-600/30 bg-green-600/10 px-3 py-2 text-sm text-green-600">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-                <span>{success}</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="size-4 animate-spin" />}
-              {isLoading ? 'Sending...' : 'Send reset link'}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Remembered it?{' '}
-            <Link
-              href="/auth/login"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              Back to login
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
-    </main>
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<ForgotPasswordSkeleton />}>
+      <ForgotPasswordForm />
+    </Suspense>
   )
 }

@@ -66,7 +66,7 @@ export async function createInvoice(invoiceData: {
     throw error
   }
 
-  revalidateTag('invoices')
+  revalidateTag('invoices', { expire: 0 })
   return data[0]
 }
 
@@ -94,7 +94,7 @@ export async function updateInvoice(
     throw error
   }
 
-  revalidateTag('invoices')
+  revalidateTag('invoices', { expire: 0 })
   return data[0]
 }
 
@@ -120,7 +120,7 @@ export async function addInvoiceItem(invoiceId: string, item: {
     throw error
   }
 
-  revalidateTag('invoices')
+  revalidateTag('invoices', { expire: 0 })
   return data[0]
 }
 
