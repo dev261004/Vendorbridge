@@ -1,483 +1,248 @@
-# VendorBridge ERP - Procurement & Vendor Management System
+# VendorBridge ERP - Procurement & Vendor Lifecycle Management
 
-![VendorBridge](https://img.shields.io/badge/VendorBridge-v1.0.0-blue)
-![Status](https://img.shields.io/badge/Status-Production--Ready-green)
-![License](https://img.shields.io/badge/License-MIT-blue)
+![VendorBridge ERP Banner](./public/vendorbridge_banner.png)
 
-## 🎯 What is VendorBridge?
+<div align="center">
 
-VendorBridge is a **complete, production-ready Procurement & Vendor Management ERP system** built with modern web technologies. It enables organizations to manage vendors, create RFQs, track quotations, manage purchase orders, and handle invoices efficiently.
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.2-black?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-emerald?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-v4.0-38bdf8?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-Component_Library-black?style=for-the-badge&logo=shadcnui&logoColor=white)](https://ui.shadcn.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Deployment](https://img.shields.io/badge/Deployed_on-Vercel-black?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-### Key Highlights
-- ✅ **Fully Functional**: All CRUD operations working
-- ✅ **Database Integrated**: Real Supabase PostgreSQL backend
-- ✅ **Secure**: Row-level security, authentication, data protection
-- ✅ **Professional UI**: Dark/light theme, responsive design
-- ✅ **Production Ready**: Deployed on Vercel with Supabase
+**A complete, production-grade, secure, and modern Procurement & Vendor lifecycle ERP built to streamline corporate buying from RFQ to Invoice.**
 
----
+[Live Application Demo](https://vendorbridge.vercel.app) • [Setup Quick Start](#-quick-start) • [Database Architecture](#-security--database-schema) • [Video Walkthrough](https://youtube.com)
 
-## 📋 Features
-
-### Core Modules
-
-| Module | Features | Status |
-|--------|----------|--------|
-| **Authentication** | Email/password login, signup, session management | ✅ Complete |
-| **Vendor Management** | Add, edit, delete vendors with ratings & status | ✅ Complete |
-| **RFQ Management** | Create RFQs, add line items, publish to vendors | ✅ Complete |
-| **Quotations** | Vendors submit quotations, accept/reject | ✅ Complete |
-| **Purchase Orders** | Auto-generate from quotations, track delivery | ✅ Complete |
-| **Invoices** | Create invoices, track payment status | ✅ Complete |
-| **Reports** | Analytics, spending trends, vendor performance | ✅ Complete |
-| **Theme System** | Dark/light mode with persistence | ✅ Complete |
-| **Dashboard** | KPIs, statistics, quick access | ✅ Complete |
-
-### Advanced Features
-- 🔐 Row-level security (RLS) on all tables
-- 📊 Real-time statistics and analytics
-- 🎨 Professional dark/light theme toggle
-- 📱 Fully responsive mobile design
-- ⚡ Fast server-side rendering with Next.js
-- 🔄 Real-time data synchronization
-- 📋 Form validation with Zod
-- 🎯 Type-safe with TypeScript
+</div>
 
 ---
 
-## 🚀 Quick Start
+## 💡 Hackathon Focus: Problem & Solution
 
-### Prerequisites
-- Node.js 18+ and pnpm
-- Supabase account (free tier available)
-- Modern web browser
+### The Challenge
+For mid-market enterprises and growing startups, procurement is a massive headache. Standard ERPs (such as SAP or Oracle) are incredibly expensive, complex to configure, and present confusing user interfaces. On the other hand, small-to-medium businesses (SMBs) struggle with scattered emails, Excel sheets, and manual PDFs to coordinate RFQs, gather vendor quotations, and match invoices. This leads to:
+* **Procurement leakage** (buying from unapproved vendors).
+* **Communication gaps** (lost email quotations or incorrect specs).
+* **Security vulnerabilities** (exposing sensitive bidding pricing between competing suppliers).
+* **Lack of audit trails** for compliance and finance tracking.
 
-### Installation
+### The Solution: VendorBridge ERP
+VendorBridge bridges the gap between procurement teams and suppliers. Built in under 72 hours for the hackathon, it provides a centralized, secure portal featuring:
+1. **Streamlined Workflow**: Direct conversion path from Request for Quotation (RFQ) ➔ Vendor Bidding ➔ Purchase Order (PO) ➔ Invoice.
+2. **Granular Role-Based Access Control (RBAC)**: Custom panels for Administrators, Procurement Managers, Suppliers, and Finance Officers.
+3. **Database-Enforced Security**: Zero-leakage environment where competing vendors can never view each other's data or bid prices, enforced using PostgreSQL Row-Level Security (RLS) policies.
+4. **Vibrant & Themeable UX**: Responsive layout designed to be simple for buyers and vendors alike, with persistable dark and light modes.
 
-```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/vendorbridge-erp.git
-cd vendorbridge-erp
+---
 
-# 2. Install dependencies
-pnpm install
+## 🔄 The Procurement Lifecycle
 
-# 3. Set up environment variables
-# NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
-# are auto-provided by Supabase integration
+VendorBridge automates the entire procurement cycle, transforming unstructured communications into a structured transaction pipeline:
 
-# 4. Start development server
-pnpm dev
-
-# 5. Open http://localhost:3000 in your browser
+```mermaid
+graph TD
+    A[Procurement Manager] -->|1. Creates RFQ| B(Published RFQ)
+    B -->|2. Invites Vendors| C{Vendor Bidding}
+    C -->|3. Submits Quotation| D(Vendor Quotations)
+    A -->|4. Reviews & Accepts Quote| E[Auto-Generated PO]
+    E -->|5. Confirms Delivery| F(Delivered Goods)
+    G[Vendor] -->|6. Generates Invoice| H(Invoice Pending Review)
+    I[Finance Officer] -->|7. Audits & Pays| J(Completed & Settled)
 ```
 
-### First Steps
-1. **Sign up** with email and password
-2. **Add vendors** through the vendor management page
-3. **Create RFQs** to send to vendors
-4. **Review quotations** from vendors
-5. **Create purchase orders** from accepted quotations
-6. **Track invoices** and payments
-
-👉 **See QUICKSTART.md for a detailed 5-minute walkthrough**
+1. **RFQ Generation**: The Procurement Manager lists items, quantities, budgets, and deadlines.
+2. **Supplier Bid Submissions**: Invited suppliers access a restricted dashboard to submit prices, terms, and delivery dates.
+3. **Quotation Acceptance**: Managers review all bids side-by-side. Accepting a quotation automatically closes the RFQ and generates a formal Purchase Order (PO).
+4. **Invoice Verification**: The Vendor issues an invoice against the PO. The Finance Officer conducts a three-way match (RFQ ➔ PO ➔ Invoice) and schedules payment.
 
 ---
 
-## 📁 Project Structure
+## 🔑 Role-Based Access Control (RBAC)
+
+A key highlight of VendorBridge is its strict permission layout. The dashboard adapts dynamically depending on the logged-in user's role:
+
+| Feature Module | 👑 Admin | 💼 Procurement | 🤝 Vendor | 💳 Finance | Enforced By |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Manage Vendors** | Write | Read | — | — | Database RLS |
+| **Create RFQs** | — | Write | — | — | Database RLS |
+| **Submit Quotations** | — | — | Write | — | Database RLS |
+| **Approve Quotations** | — | Write | — | — | Database RLS |
+| **Manage POs** | Read | Write | Read (Own) | Read | Database RLS |
+| **Process Invoices** | Read | — | Write (Own) | Write | Database RLS |
+| **Audit Logs** | Write | — | — | — | Database RLS |
+
+---
+
+## 🛠️ Technology Stack
+
+VendorBridge is built on a modern, robust stack configured for low latency, server-side performance, and absolute type safety.
+
+* **Frontend**:
+  * **Next.js 16 (App Router)**: Hybrid routing with Server Components and Client Components for maximum performance.
+  * **Tailwind CSS v4.0**: Styling engine utilizing modern HSL variables for custom UI styling.
+  * **shadcn/ui**: Accessible and fully themeable components.
+  * **React Hook Form & Zod**: Schema-based form validation ensuring zero bad payloads reach the server.
+* **Backend & Database**:
+  * **Supabase PostgreSQL**: Managed relation database with tables connected via foreign key constraints.
+  * **Supabase Authentication**: Session handling via secure cookies.
+  * **PostgreSQL Row-Level Security (RLS)**: Policies checking roles (`user_role`) to isolate database rows.
+* **Infrastructure**:
+  * **Vercel Edge Network**: Instant deployment and serverless server actions.
+  * **Next.js Server Actions**: Form submissions and database changes triggered without custom REST APIs.
+
+---
+
+## 🔒 Security & Database Schema
+
+VendorBridge secures commercial-in-confidence data at the engine tier. A compromised frontend route will still fail to load data because the Supabase client passes the authenticated user's JWT directly to PostgreSQL, which filters query results using Row-Level Security (RLS).
+
+### Schema Layout
+The database schema consists of 10 primary tables managed by SQL migrations under [`supabase/migrations`](file:///d:/Vendorbridge/supabase/migrations):
+
+```
+├── profiles (Extended user details, auth-synced via DB triggers)
+├── vendors (Supplier profiles, categories, ratings)
+├── rfqs (Request for quotations)
+├── rfq_items (Line-items for RFQs)
+├── quotations (Bids submitted by suppliers)
+├── quotation_items (Line-item prices for quotations)
+├── purchase_orders (Agreed purchase contracts)
+├── po_items (Line-items for purchase orders)
+├── invoices (Billing requests)
+└── audit_logs (System modifications log for compliance)
+```
+
+### Critical RLS Implementation Example
+For example, to prevent vendors from viewing each other's competitive bids, the following policy is applied to the `quotations` table:
+```sql
+CREATE POLICY "Vendors can only view/manage their own quotations"
+ON public.quotations
+FOR ALL
+USING (auth.uid() = vendor_id OR EXISTS (
+  SELECT 1 FROM public.profiles 
+  WHERE profiles.id = auth.uid() AND profiles.role IN ('admin', 'procurement_manager', 'finance')
+));
+```
+
+---
+
+## 📁 Repository Blueprint
 
 ```
 vendorbridge-erp/
 ├── app/
-│   ├── actions/                 # Server actions for CRUD operations
-│   │   ├── vendors.ts
-│   │   ├── rfqs.ts
-│   │   ├── quotations.ts
-│   │   ├── purchase-orders.ts
-│   │   └── invoices.ts
-│   ├── auth/                    # Authentication pages
-│   │   ├── login/page.tsx
-│   │   ├── sign-up/page.tsx
-│   │   ├── callback/route.ts
-│   │   └── error/page.tsx
-│   ├── dashboard/               # Dashboard and features
-│   │   ├── page.tsx             # Main dashboard
-│   │   ├── vendors/             # Vendor management
-│   │   ├── rfqs/                # RFQ management
-│   │   ├── quotations/          # Quotation management
-│   │   ├── purchase-orders/     # PO management
-│   │   ├── invoices/            # Invoice management
-│   │   ├── reports/             # Analytics & reports
-│   │   └── settings/            # User settings
-│   ├── layout.tsx               # Root layout
-│   ├── page.tsx                 # Auth redirect
-│   └── globals.css              # Global styles with theme
-├── components/
-│   ├── DashboardNavigation.tsx   # Sidebar navigation
-│   ├── VendorModal.tsx          # Vendor add/edit modal
-│   ├── VendorTable.tsx          # Vendor list table
-│   ├── RFQModal.tsx             # RFQ modal
-│   └── ui/                      # shadcn/ui components
+│   ├── actions/                 # Next.js Server Actions (Database CRUD)
+│   │   ├── activity.ts          # Audit logging
+│   │   ├── approvals.ts         # Manager approval flows
+│   │   ├── invoices.ts          # Invoicing management
+│   │   ├── purchase-orders.ts   # PO status updates
+│   │   ├── quotations.ts        # Bids creation & selection
+│   │   └── rfqs.ts              # RFQ creation & publishing
+│   ├── auth/                    # Next.js Auth flow and callbacks
+│   ├── dashboard/               # Main ERP views (Role-guarded)
+│   │   ├── activity/            # System audit logs
+│   │   ├── approvals/           # Manager queue
+│   │   ├── invoices/            # Finance ledger
+│   │   ├── purchase-orders/     # Operations center
+│   │   ├── quotations/          # Vendor bidding center
+│   │   ├── reports/             # Spend & KPI reports
+│   │   └── rfqs/                # RFQ catalog
+│   ├── globals.css              # Custom Tailwind CSS v4 styling
+│   └── page.tsx                 # Auto-routing landing page
+├── components/                  # Custom components
+│   ├── ui/                      # Base shadcn component library
+│   ├── RFQModal.tsx             # Interactive RFQ creator
+│   ├── QuotationSubmissionModal.tsx # Supplier bid form
+│   └── VendorModal.tsx          # Vendor registry component
 ├── lib/
-│   ├── supabase/                # Supabase clients
-│   │   ├── client.ts
-│   │   ├── server.ts
-│   │   └── proxy.ts
-│   ├── theme-provider.tsx       # Theme context & provider
-│   ├── types.ts                 # TypeScript types
-│   ├── utils.ts                 # Utility functions
-│   └── store.ts                 # Legacy Zustand store (deprecated)
-├── middleware.ts                # Auth middleware
-├── QUICKSTART.md                # 5-minute setup guide
-├── IMPLEMENTATION_GUIDE.md      # Complete feature documentation
-├── DEPLOYMENT.md                # Production deployment guide
-└── README.md                    # This file
+│   ├── supabase/                # Supabase Clients (Server, Browser, Admin)
+│   │   ├── admin.ts             # Service-role admin client (for vendor invites)
+│   │   └── proxy.ts             # Next.js Middleware route guards
+│   ├── theme-provider.tsx       # LocalStorage theme controller
+│   └── types.ts                 # TS Interface declarations
+├── supabase/                    # Migration configurations
+│   ├── migrations/              # SQL structural updates
+│   └── README.md                # DB migration guidelines
+└── package.json                 # Project configuration files
 ```
 
 ---
 
-## 🏗️ Architecture
+## ⚡ Quick Start
 
-### Frontend
-- **Framework**: Next.js 16 with App Router
-- **UI Library**: shadcn/ui components
-- **Styling**: TailwindCSS with custom theme
-- **Forms**: React Hook Form + Zod validation
-- **State**: Server actions + React hooks
-- **Icons**: Lucide React
+Follow these steps to run VendorBridge ERP locally.
 
-### Backend
-- **Auth**: Supabase Authentication
-- **Database**: Supabase PostgreSQL
-- **Security**: Row-level security (RLS)
-- **API**: Next.js server actions
-- **Caching**: Next.js cache revalidation
+### Prerequisites
+* **Node.js**: `18.x` or above.
+* **pnpm** (or npm/yarn): For package management.
+* **Supabase Project**: Active database instance.
 
-### Deployment
-- **Hosting**: Vercel (serverless)
-- **Database**: Supabase cloud
-- **CDN**: Vercel edge network
-
----
-
-## 🔐 Security
-
-### Authentication & Authorization
-- Supabase email/password authentication
-- Session-based with HTTP-only cookies
-- Middleware-protected dashboard routes
-- Automatic logout on session expiry
-
-### Data Protection
-- **RLS Policies**: All tables protected
-- **User Isolation**: Users see only their data
-- **SQL Injection Prevention**: Parameterized queries
-- **CSRF Protection**: Built-in middleware
-- **Input Validation**: Zod schemas on forms
-
-### Infrastructure
-- HTTPS by default on Vercel
-- Secure Supabase connection
-- Regular automated backups
-- Environment variable isolation
-
----
-
-## 📊 Database Schema
-
-### Tables (10 total)
-1. **vendors** - Supplier information
-2. **rfqs** - Request for Quotation documents
-3. **rfq_items** - Individual RFQ line items
-4. **quotations** - Vendor quotation submissions
-5. **quotation_items** - Quotation line items
-6. **purchase_orders** - PO documents
-7. **po_items** - PO line items
-8. **invoices** - Vendor invoices
-9. **invoice_items** - Invoice line items
-10. **profiles** - User profile information
-
-**Row-Level Security**: All tables have RLS enabled
-**Relationships**: Proper foreign key constraints
-**Triggers**: Auto-profile creation on signup
-
-👉 **See IMPLEMENTATION_GUIDE.md for complete schema details**
-
----
-
-## 🎨 Theme System
-
-### Dark/Light Mode
-- Persists to localStorage
-- Applied via CSS custom properties
-- Smooth theme transitions
-- Context API for global state
-
-### Usage
-```tsx
-import { useTheme } from '@/lib/theme-provider'
-
-export function MyComponent() {
-  const { theme, toggleTheme } = useTheme()
-  
-  return (
-    <button onClick={toggleTheme}>
-      Current: {theme}
-    </button>
-  )
-}
-```
-
----
-
-## 🔧 API Reference
-
-### Server Actions
-
-All CRUD operations are implemented as server actions:
-
-```tsx
-// Vendors
-getVendors()
-createVendor(data)
-updateVendor(id, data)
-deleteVendor(id)
-
-// RFQs
-getRFQs()
-createRFQ(data)
-updateRFQ(id, data)
-deleteRFQ(id)
-
-// And similar for quotations, POs, invoices...
-```
-
-👉 **See IMPLEMENTATION_GUIDE.md for complete API reference**
-
----
-
-## 📈 Monitoring & Performance
-
-### Built-in Features
-- Vercel Web Analytics
-- Supabase performance monitoring
-- Error logging via browser console
-- Database query statistics
-
-### Optimization
-- Server-side rendering for SEO
-- Automatic static generation where possible
-- Image optimization
-- CSS-in-JS with TailwindCSS
-
----
-
-## 🚢 Deployment
-
-### Deploy to Vercel (Recommended)
-
+### 1. Clone & Install Dependencies
 ```bash
-# 1. Push code to GitHub
-git push origin main
-
-# 2. Visit vercel.com/new
-# 3. Import the repository
-# 4. Add environment variables:
-#    - NEXT_PUBLIC_SUPABASE_URL
-#    - NEXT_PUBLIC_SUPABASE_ANON_KEY
-# 5. Click Deploy
-
-# Production URL: https://vendorbridge.vercel.app
+git clone https://github.com/yourusername/vendorbridge-erp.git
+cd vendorbridge-erp
+pnpm install
 ```
 
-👉 **See DEPLOYMENT.md for step-by-step deployment guide**
+### 2. Set Up Environment Variables
+Create a `.env` file in the root directory and add your Supabase credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
+SUPABASE_SERVICE_ROLE_KEY=your-secure-service-role-key # For supplier invites
+```
 
----
-
-## 📚 Documentation
-
-| Document | Purpose |
-|----------|---------|
-| **QUICKSTART.md** | 5-minute setup and basic usage |
-| **IMPLEMENTATION_GUIDE.md** | Complete feature documentation |
-| **DEPLOYMENT.md** | Production deployment steps |
-| **README.md** | This overview (you are here) |
-
----
-
-## 🛠️ Development
-
-### Available Commands
-
+### 3. Deploy Database Schema
+Push the local database migration scripts to your linked Supabase account:
 ```bash
-# Start development server
+# Link to your Supabase project (first time setup)
+npx supabase link --project-ref YOUR_PROJECT_REF
+
+# Push migrations
+npm run db:push
+```
+*Alternatively, you can copy the raw SQL files from [`supabase/migrations`](file:///d:/Vendorbridge/supabase/migrations) directly into the Supabase SQL Editor and run them.*
+
+### 4. Boot Up Development Server
+```bash
 pnpm dev
-
-# Build for production
-pnpm run build
-
-# Preview production build
-pnpm start
-
-# Run linter
-pnpm run lint
-
-# Type checking
-pnpm run type-check
-
-# Format code
-pnpm run format
 ```
-
-### Technology Stack
-
-```json
-{
-  "runtime": "Node.js 18+",
-  "framework": "Next.js 16",
-  "react": "19.2+",
-  "database": "Supabase (PostgreSQL)",
-  "styling": "TailwindCSS 4",
-  "ui": "shadcn/ui",
-  "forms": "React Hook Form + Zod",
-  "auth": "Supabase Auth",
-  "deployment": "Vercel"
-}
-```
+Open [http://localhost:3000](http://localhost:3000) in your web browser.
 
 ---
 
-## 🐛 Troubleshooting
+## 🧠 Hackathon Learnings & Hurdles
 
-### Common Issues
+### 1. Multi-Role UI Routing
+**Challenge**: Ensuring a clean dashboard transition when logging in as different roles (e.g., logging in as a Vendor versus a Procurement Manager).
+**Solution**: Implemented a Next.js `middleware.ts` combined with an helper function [`updateSession`](file:///d:/Vendorbridge/lib/supabase/proxy.ts). It intercepts incoming cookies, matches the user against the database `profiles` table, and guards dashboard folders.
 
-**Login not working?**
-- Verify Supabase URL and keys
-- Check email is confirmed
-- Clear browser cache
+### 2. Live Reactivity without REST
+**Challenge**: Keeping dashboard counters and KPI cards up to date without continuously poll-querying the database.
+**Solution**: Utilized Next.js Server Actions with immediate cache revalidation (`revalidatePath`). When a vendor submits a quote, the UI refreshes state server-side instantly.
 
-**Data not saving?**
-- Check browser console for errors
-- Verify form validation passed
-- Check Supabase database connection
-
-**Theme not switching?**
-- Clear localStorage
-- Hard refresh (Ctrl+Shift+R)
-- Check theme provider in layout
-
-👉 **See IMPLEMENTATION_GUIDE.md for detailed troubleshooting**
+### 3. Securing Competing Bids
+**Challenge**: Setting up PostgreSQL security rules so suppliers could submit quotations for an RFQ, but never query other vendors' bid pricing.
+**Solution**: Authored a custom multi-policy configuration inside `supabase/migrations/20260606000400_vendor_quotation_submission_permissions.sql` which enforces that read permission queries check the caller's ID or organization association.
 
 ---
 
-## 📊 Project Statistics
+## 🔮 Future Roadmap
 
-- **Total Files**: 50+
-- **Lines of Code**: 5000+
-- **Database Tables**: 10
-- **API Endpoints**: 30+
-- **UI Components**: 20+
-- **Pages**: 15
-- **Test Coverage**: Foundation ready
-
----
-
-## 🤝 Contributing
-
-### Contribution Guidelines
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-### Code Standards
-- TypeScript strict mode enabled
-- ESLint for code quality
-- Prettier for formatting
-- Zod for runtime validation
+* [ ] **AI-Powered Supplier Scoring**: Analyze vendor delivery times and historical pricing to suggest the optimal quotation automatically.
+* [ ] **Automated Document Parsing**: OCR integration to parse supplier PDFs directly into purchase orders and invoice forms.
+* [ ] **Real-Time WebSockets Notifications**: Instant push alerts when an RFQ receives a new bid or an invoice is settled.
+* [ ] **Multi-Currency Transactions**: Global currency support with automatic conversion rates.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
-
-Built with:
-- [Next.js](https://nextjs.org/)
-- [Supabase](https://supabase.com/)
-- [Vercel](https://vercel.com/)
-- [shadcn/ui](https://ui.shadcn.com/)
-- [TailwindCSS](https://tailwindcss.com/)
-- [React Hook Form](https://react-hook-form.com/)
-- [Zod](https://zod.dev/)
-
----
-
-## 🚀 Roadmap
-
-### Phase 2 (Planned)
-- [ ] Email notifications
-- [ ] PDF export for invoices
-- [ ] Real-time collaboration
-- [ ] Advanced analytics with charts
-- [ ] File storage (documents, attachments)
-- [ ] Team management & roles
-- [ ] Audit logging
-- [ ] API for third-party integrations
-
-### Phase 3 (Future)
-- [ ] Mobile app
-- [ ] Multi-tenant support
-- [ ] Advanced workflows
-- [ ] AI-powered predictions
-- [ ] Marketplace integration
-
----
-
-## 💬 Support & Community
-
-- **GitHub Issues**: Report bugs and request features
-- **Discussions**: Ask questions and share ideas
-- **Documentation**: Complete guides and tutorials
-- **Examples**: Real-world usage examples
-
----
-
-## 📞 Contact
-
-- **Email**: support@vendorbridge.com
-- **Twitter**: @vendorbridge
-- **Website**: https://vendorbridge.dev
-
----
-
-## 🎉 Getting Started
-
-Ready to use VendorBridge?
-
-1. **Read QUICKSTART.md** (5 minutes)
-2. **Start development server** (`pnpm dev`)
-3. **Create account** (email & password)
-4. **Add vendors** and start managing procurement!
-
----
-
-**Made with ❤️ for procurement teams worldwide**
-
----
-
-### Quick Links
-- [Quick Start Guide](./QUICKSTART.md)
-- [Complete Documentation](./IMPLEMENTATION_GUIDE.md)
-- [Deployment Guide](./DEPLOYMENT.md)
-- [GitHub Repository](https://github.com/yourusername/vendorbridge-erp)
-- [Live Demo](https://vendorbridge.vercel.app)
-
----
-
-*Last updated: June 2026 | Version 1.0.0*
+**Built with ❤️ by Hackathon Team VendorBridge**
