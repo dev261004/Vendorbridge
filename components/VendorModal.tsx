@@ -4,21 +4,58 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { createVendor, updateVendor as updateVendorAction } from '@/app/actions/vendors'
+import {
+  createVendor,
+  getVendorById,
+  updateVendor as updateVendorAction,
+} from '@/app/actions/vendors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { VendorFormValues, VendorStatus } from '@/lib/vendors'
 
 const vendorSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email'),
-  phone: z.string().min(5, 'Phone number is required'),
+  name: z.string().min(2, 'Vendor name must be at least 2 characters'),
+  category: z.string().min(2, 'Category is required'),
+  gst_number: z.string(),
+  contact_person: z.string().min(2, 'Contact person is required'),
+  email: z
+    .string()
+    .refine((value) => !value || z.string().email().safeParse(value).success, {
+      message: 'Invalid email',
+    }),
+  phone: z.string().min(5, 'Contact number is required'),
   address: z.string().min(5, 'Address is required'),
   city: z.string().min(2, 'City is required'),
+  state: z.string(),
   country: z.string().min(2, 'Country is required'),
+  rating: z.number().min(0).max(5),
+  status: z.enum(['pending', 'active', 'blocked', 'inactive']),
 })
 
-type VendorFormData = z.infer<typeof vendorSchema>
+const defaultValues: VendorFormValues = {
+  name: '',
+  category: '',
+  gst_number: '',
+  contact_person: '',
+  email: '',
+  phone: '',
+  address: '',
+  city: '',
+  state: '',
+  country: 'India',
+  rating: 0,
+  status: 'pending',
+}
+
+const selectClassName =
+  'h-8 w-full rounded-lg border border-slate-600 bg-slate-700 px-2.5 text-sm text-white outline-none focus-visible:border-blue-500'
+
+const nativeOptionStyle = {
+  backgroundColor: '#0f172a',
+  color: '#f8fafc',
+}
 
 interface VendorModalProps {
   isOpen: boolean
@@ -28,43 +65,76 @@ interface VendorModalProps {
 
 export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const {
     register,
     reset,
     handleSubmit,
     formState: { errors },
-  } = useForm<VendorFormData>({
+  } = useForm<VendorFormValues>({
     resolver: zodResolver(vendorSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      country: '',
-    },
+    defaultValues,
   })
 
   useEffect(() => {
-    if (!isOpen) {
-      reset()
-    }
-  }, [isOpen, reset])
+    const loadVendor = async () => {
+      if (!isOpen) {
+        reset(defaultValues)
+        setFormError(null)
+        return
+      }
 
-  const onSubmit = async (data: VendorFormData) => {
+      if (!vendorId) {
+        reset(defaultValues)
+        setFormError(null)
+        return
+      }
+
+      try {
+        setIsFetching(true)
+        setFormError(null)
+        const vendor = await getVendorById(vendorId)
+        reset({
+          name: vendor.name,
+          category: vendor.category,
+          gst_number: vendor.gst_number || '',
+          contact_person: vendor.contact_person || '',
+          email: vendor.email || '',
+          phone: vendor.phone || '',
+          address: vendor.address || '',
+          city: vendor.city || '',
+          state: vendor.state || '',
+          country: vendor.country || 'India',
+          rating: vendor.rating || 0,
+          status: vendor.status,
+        })
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : 'Failed to load vendor.')
+      } finally {
+        setIsFetching(false)
+      }
+    }
+
+    loadVendor()
+  }, [isOpen, reset, vendorId])
+
+  const onSubmit = async (data: VendorFormValues) => {
     try {
       setIsLoading(true)
+      setFormError(null)
+
       if (vendorId) {
         await updateVendorAction(vendorId, data)
       } else {
         await createVendor(data)
       }
-      reset()
+
+      reset(defaultValues)
       onClose()
     } catch (error) {
-      console.error('Failed to save vendor:', error)
-      alert('Failed to save vendor. Please try again.')
+      setFormError(error instanceof Error ? error.message : 'Failed to save vendor.')
     } finally {
       setIsLoading(false)
     }
@@ -72,121 +142,170 @@ export default function VendorModal({ isOpen, onClose, vendorId }: VendorModalPr
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-2xl">
+      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto border-slate-700 bg-slate-800 text-white">
         <DialogHeader>
           <DialogTitle>{vendorId ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Name
-              </label>
-              <Input
-                {...register('name')}
-                placeholder="Vendor Name"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              {errors.name && (
-                <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
-              )}
+        {isFetching ? (
+          <div className="py-10 text-center text-slate-400">Loading vendor details...</div>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Vendor Name" error={errors.name?.message}>
+                <Input
+                  {...register('name')}
+                  placeholder="Infra Supplies Pvt Ltd"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Category" error={errors.category?.message}>
+                <Input
+                  {...register('category')}
+                  placeholder="Furniture, IT, Logistics"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="GST Number" error={errors.gst_number?.message}>
+                <Input
+                  {...register('gst_number')}
+                  placeholder="27AABCS1429B2Z0"
+                  className="border-slate-600 bg-slate-700 text-white uppercase"
+                />
+              </Field>
+
+              <Field label="Contact Person" error={errors.contact_person?.message}>
+                <Input
+                  {...register('contact_person')}
+                  placeholder="Rahul Mehta"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Email" error={errors.email?.message}>
+                <Input
+                  {...register('email')}
+                  type="email"
+                  placeholder="vendor@example.com"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Contact Number" error={errors.phone?.message}>
+                <Input
+                  {...register('phone')}
+                  placeholder="+91 98765 43210"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="City" error={errors.city?.message}>
+                <Input
+                  {...register('city')}
+                  placeholder="Ahmedabad"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="State" error={errors.state?.message}>
+                <Input
+                  {...register('state')}
+                  placeholder="Gujarat"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Country" error={errors.country?.message}>
+                <Input
+                  {...register('country')}
+                  placeholder="India"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Rating" error={errors.rating?.message}>
+                <Input
+                  {...register('rating', { valueAsNumber: true })}
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  className="border-slate-600 bg-slate-700 text-white"
+                />
+              </Field>
+
+              <Field label="Status" error={errors.status?.message}>
+                <select
+                  {...register('status')}
+                  className={selectClassName}
+                >
+                  {(['pending', 'active', 'blocked', 'inactive'] as VendorStatus[]).map(
+                    (status) => (
+                      <option key={status} value={status} style={nativeOptionStyle}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </option>
+                    )
+                  )}
+                </select>
+              </Field>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Email
-              </label>
-              <Input
-                {...register('email')}
-                type="email"
-                placeholder="vendor@example.com"
-                className="bg-slate-700 border-slate-600 text-white"
+            <Field label="Address" error={errors.address?.message}>
+              <Textarea
+                {...register('address')}
+                placeholder="Full registered address"
+                className="border-slate-600 bg-slate-700 text-white"
+                rows={3}
               />
-              {errors.email && (
-                <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
-              )}
-            </div>
-          </div>
+            </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Phone
-              </label>
-              <Input
-                {...register('phone')}
-                placeholder="Phone Number"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              {errors.phone && (
-                <p className="text-red-500 text-sm mt-1">{errors.phone.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                City
-              </label>
-              <Input
-                {...register('city')}
-                placeholder="City"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              {errors.city && (
-                <p className="text-red-500 text-sm mt-1">{errors.city.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Country
-              </label>
-              <Input
-                {...register('country')}
-                placeholder="Country"
-                className="bg-slate-700 border-slate-600 text-white"
-              />
-              {errors.country && (
-                <p className="text-red-500 text-sm mt-1">{errors.country.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Address
-            </label>
-            <Input
-              {...register('address')}
-              placeholder="Full Address"
-              className="bg-slate-700 border-slate-600 text-white"
-            />
-            {errors.address && (
-              <p className="text-red-500 text-sm mt-1">{errors.address.message}</p>
+            {formError && (
+              <div className="rounded-lg border border-red-700 bg-red-900/30 px-3 py-2 text-sm text-red-300">
+                {formError}
+              </div>
             )}
-          </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
-            >
-              {isLoading ? 'Saving...' : vendorId ? 'Update Vendor' : 'Add Vendor'}
-            </Button>
-            <Button
-              type="button"
-              onClick={onClose}
-              className="bg-slate-700 hover:bg-slate-600 text-white flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
+            <div className="flex gap-3 pt-2">
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+              >
+                {isLoading ? 'Saving...' : vendorId ? 'Update Vendor' : 'Add Vendor'}
+              </Button>
+              <Button
+                type="button"
+                onClick={onClose}
+                className="flex-1 bg-slate-700 text-white hover:bg-slate-600"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string
+  error?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-slate-300">
+        {label}
+      </label>
+      {children}
+      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
+    </div>
   )
 }
