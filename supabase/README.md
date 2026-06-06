@@ -32,7 +32,7 @@ It creates:
 - Purchase orders and PO items
 - Invoices and invoice items
 - Activity logs and notifications
-- Private Supabase Storage buckets for RFQ attachments and invoice PDFs
+- Private Supabase Storage buckets for profile photos, RFQ attachments, and invoice PDFs
 - RLS policies for internal users and vendors
 
 ## How To Apply

@@ -13,30 +13,46 @@ import {
   Menu,
   Sun,
   Moon,
+  CheckCircle,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/lib/theme-provider'
 import { createClient } from '@/lib/supabase/client'
+import { AppRole, dashboardRouteRoles, isAppRole, roleLabels } from '@/lib/auth/roles'
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Users, label: 'Vendors', href: '/dashboard/vendors' },
   { icon: FileText, label: 'RFQs', href: '/dashboard/rfqs' },
   { icon: Package, label: 'Quotations', href: '/dashboard/quotations' },
+  { icon: CheckCircle, label: 'Approvals', href: '/dashboard/approvals' },
   { icon: Package, label: 'Purchase Orders', href: '/dashboard/purchase-orders' },
   { icon: Receipt, label: 'Invoices', href: '/dashboard/invoices' },
   { icon: BarChart3, label: 'Reports', href: '/dashboard/reports' },
   { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ]
 
-export default function DashboardNavigation() {
+interface DashboardNavigationProps {
+  initialRole?: AppRole
+}
+
+interface ProfileSummary {
+  role: AppRole
+  first_name: string | null
+  last_name: string | null
+}
+
+export default function DashboardNavigation({
+  initialRole = 'procurement_officer',
+}: DashboardNavigationProps) {
   const router = useRouter()
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<ProfileSummary | null>(null)
 
   useEffect(() => {
     const getUser = async () => {
@@ -45,9 +61,25 @@ export default function DashboardNavigation() {
         data: { user },
       } = await supabase.auth.getUser()
       setUser(user)
+
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('role, first_name, last_name')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (data) {
+          setProfile({
+            role: isAppRole(data.role) ? data.role : initialRole,
+            first_name: data.first_name,
+            last_name: data.last_name,
+          })
+        }
+      }
     }
     getUser()
-  }, [])
+  }, [initialRole])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -55,7 +87,14 @@ export default function DashboardNavigation() {
     router.push('/auth/login')
   }
 
-  const filteredMenuItems = menuItems
+  const activeRole = profile?.role || initialRole
+  const fullName = [profile?.first_name, profile?.last_name]
+    .filter(Boolean)
+    .join(' ')
+  const filteredMenuItems = menuItems.filter((item) => {
+    const route = dashboardRouteRoles.find((route) => route.href === item.href)
+    return !route || route.roles.includes(activeRole)
+  })
 
   return (
     <>
@@ -92,7 +131,8 @@ export default function DashboardNavigation() {
         {user && (
           <div className="px-6 py-4 border-b border-slate-700">
             <p className="text-sm text-slate-300 font-medium">{user.email}</p>
-            <p className="text-xs text-slate-500">Procurement Manager</p>
+            {fullName && <p className="text-xs text-slate-400">{fullName}</p>}
+            <p className="text-xs text-slate-500">{roleLabels[activeRole]}</p>
           </div>
         )}
 
