@@ -13,7 +13,8 @@
     "db:pull": "supabase db pull",
     "db:diff": "supabase db diff --schema public,storage",
     "db:migrations": "supabase migration list",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "db:seed:demo": "node scripts/seed-demo-data.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
